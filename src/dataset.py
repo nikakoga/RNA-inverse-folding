@@ -53,7 +53,7 @@ def motyw_pozycji(struct: str) -> list[str]:
     spinka          niesparowana, w pętli domykanej JEDNĄ helisą
     wybrzuszenie    niesparowana, w pętli domykanej dwiema helisami
     multipetla      niesparowana, w pętli domykanej trzema lub więcej
-    zewnetrzna      niesparowana, bez pary domykającej
+    regiony-zewnetrzne      niesparowana, bez pary domykającej
     """
     n = len(struct)
     par = partner_array(struct)
@@ -77,7 +77,7 @@ def motyw_pozycji(struct: str) -> list[str]:
                 zamk = k
                 break
         if zamk < 0:
-            lab[i] = "zewnetrzna"
+            lab[i] = "regiony-zewnetrzne"
             continue
         j = int(par[zamk])
         helisy, k = 1, zamk + 1
@@ -91,7 +91,7 @@ def motyw_pozycji(struct: str) -> list[str]:
     return lab
 
 
-MOTYWY = ["helisa-wnetrze", "helisa-koniec", "spinka", "wybrzuszenie", "multipetla", "zewnetrzna"]
+MOTYWY = ["helisa-wnetrze", "helisa-koniec", "spinka", "wybrzuszenie", "multipetla", "regiony-zewnetrzne"]
 
 
 def koduj(structs: list[str], seqs: list[str] | None, device):

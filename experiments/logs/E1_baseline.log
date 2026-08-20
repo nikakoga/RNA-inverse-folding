@@ -1,0 +1,10 @@
+baseline losowy kanoniczny
+zbior TEST: 739 struktur | Eterna <= 50 nt: 18
+
+zbior          dlugosc     n  rozwiazane   odzysk    dE/nt
+test              0-50    14        2/14    0.253   0.0113
+test            51-100   451       3/451    0.261  -0.0468
+test           101-200   274       0/274    0.264  -0.0181
+eterna<=50        0-50    18        3/18    0.326   0.1546
+
+zapisano: experiments/analysis/baseline_test.csv

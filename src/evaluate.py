@@ -68,15 +68,16 @@ def generuj(model, structs, device, bs=32):
 
 
 def eterna(max_len=50):
-    E = pd.read_csv(ROOT / "data" / "raw" / "eterna100.tsv", sep="\t")
-    col = "Secondary Structure V2"
-    par = []
-    for st, sq in zip(E[col], E["Sample Solution (V2/Vienna2)"]):
-        st, sq = str(st).strip(), str(sq).strip()
-        if (len(st) <= max_len and len(st) == len(sq) and "(" in st
-                and set(st) <= set(".()") and set(sq) <= set("ACGU")):
-            par.append((st, sq))
-    return [a for a, _ in par], [b for _, b in par]
+    """Zagadki Eterny PO odsianiu redundancji i po tych samych filtrach co dane naturalne.
+
+    Czytamy z `data/eterna_working.parquet`, a NIE z surowego pliku zrodlowego — inaczej ocenialibysmy
+    na zbiorze z duplikatami. cd-hit-est usuwa 3 z 18 zagadek jako wzajemnie podobne, a filtr przewagi
+    sparowanych kolejne 4.
+    """
+    from src.prepare import wczytaj_eterna
+    d = wczytaj_eterna()
+    d = d[d.secondary_structure.str.len() <= max_len]
+    return d.secondary_structure.tolist(), d.sequence.tolist()
 
 
 def ocen(structs, gen, refs, etykieta, kubelki=KUBELKI):

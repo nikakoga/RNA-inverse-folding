@@ -84,7 +84,7 @@ Oczekiwana energia struktury docelowej, liczona na rozkładach prawdopodobieńst
 
 ```
 stosy par            tablica 6x6 klas, pelna orientacja pary
-kary terminalne AU   na ZEWNETRZNYM koncu helisy
+kary terminalne AU   na końcu helisy w REGIONACH ZEWNETRZNYCH
 niedopasowanie spinki  odczyt z RNA.E_Hairpin
 ```
 
@@ -179,7 +179,7 @@ z konkretnego zbioru.
 
 ```
 TEST NATURALNY    20% puli, rodziny nieobecne w treningu. Ocena glowna.
-ETERNA <= 50 nt   zagadki projektowe ludzi. Pomocnicza, zewnetrzna wobec naszych danych.
+ETERNA <= 50 nt   zagadki projektowe ludzi. Pomocnicza, spoza naszych danych.
 ```
 
 | miara | co znaczy | używa RNAfolda |

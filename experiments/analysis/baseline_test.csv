@@ -1,0 +1,5 @@
+model,zbior,dlugosc,n,rozwiazane,odzysk,dE_nt
+baseline losowy kanoniczny,test,0-50,14,2,0.2526073997320056,0.011283115028497942
+baseline losowy kanoniczny,test,51-100,451,3,0.26101667311423865,-0.04678097632205147
+baseline losowy kanoniczny,test,101-200,274,0,0.26417108804066136,-0.01810968889867056
+baseline losowy kanoniczny,eterna<=50,0-50,11,2,0.31011916497523845,0.14233405454662462

@@ -1,0 +1,35 @@
+C:\Users\janle\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\transformer.py:385: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+urzadzenie cuda | struktur 3699 | podzial rodzinowy
+train 2220  val 740  test 739
+cel skladu: petle {'A': 0.33, 'C': 0.198, 'G': 0.213, 'U': 0.259}  pary {'GC': 0.555, 'AU': 0.321, 'GU': 0.125}
+wagi kar: energia 1.0  parowania 6.0  sklad 0.0 | wybor epoki: odzysk
+parametry: 5.04 mln
+[1/60] CE 2.9112 | energia -0.2824 parowania 0.1666 sklad 0.0000 | val odzysk 0.2856 CE 1.6198 | 7s  *najlepszy -> zapis
+[2/60] CE 2.7016 | energia -0.2877 parowania 0.1682 sklad 0.0000 | val odzysk 0.2904 CE 1.5936 | 6s  *najlepszy -> zapis
+[3/60] CE 2.6082 | energia -0.2889 parowania 0.1696 sklad 0.0000 | val odzysk 0.3035 CE 1.5342 | 6s  *najlepszy -> zapis
+[4/60] CE 2.5267 | energia -0.2882 parowania 0.1711 sklad 0.0000 | val odzysk 0.3053 CE 1.5291 | 6s  *najlepszy -> zapis
+[5/60] CE 2.4626 | energia -0.2885 parowania 0.1720 sklad 0.0000 | val odzysk 0.3081 CE 1.5388 | 6s  *najlepszy -> zapis
+[6/60] CE 2.4100 | energia -0.2895 parowania 0.1726 sklad 0.0000 | val odzysk 0.3026 CE 1.5313 | 6s  (bez poprawy 1/10)
+[7/60] CE 2.3563 | energia -0.2892 parowania 0.1731 sklad 0.0000 | val odzysk 0.3113 CE 1.5351 | 6s  *najlepszy -> zapis
+[8/60] CE 2.3168 | energia -0.2887 parowania 0.1735 sklad 0.0000 | val odzysk 0.3104 CE 1.5534 | 6s  (bez poprawy 1/10)
+[9/60] CE 2.2703 | energia -0.2878 parowania 0.1740 sklad 0.0000 | val odzysk 0.3109 CE 1.5306 | 6s  (bez poprawy 2/10)
+[10/60] CE 2.2349 | energia -0.2895 parowania 0.1743 sklad 0.0000 | val odzysk 0.3072 CE 1.5082 | 6s  (bez poprawy 3/10)
+[11/60] CE 2.2009 | energia -0.2884 parowania 0.1746 sklad 0.0000 | val odzysk 0.3098 CE 1.5160 | 6s  (bez poprawy 4/10)
+[12/60] CE 2.1747 | energia -0.2883 parowania 0.1750 sklad 0.0000 | val odzysk 0.3115 CE 1.5294 | 6s  *najlepszy -> zapis
+[13/60] CE 2.1469 | energia -0.2889 parowania 0.1751 sklad 0.0000 | val odzysk 0.3101 CE 1.5408 | 6s  (bez poprawy 1/10)
+[14/60] CE 2.1234 | energia -0.2881 parowania 0.1756 sklad 0.0000 | val odzysk 0.3099 CE 1.5337 | 6s  (bez poprawy 2/10)
+[15/60] CE 2.1028 | energia -0.2886 parowania 0.1758 sklad 0.0000 | val odzysk 0.3147 CE 1.5558 | 6s  *najlepszy -> zapis
+[16/60] CE 2.0850 | energia -0.2881 parowania 0.1759 sklad 0.0000 | val odzysk 0.3121 CE 1.5436 | 6s  (bez poprawy 1/10)
+[17/60] CE 2.0621 | energia -0.2882 parowania 0.1763 sklad 0.0000 | val odzysk 0.3104 CE 1.5663 | 6s  (bez poprawy 2/10)
+[18/60] CE 2.0458 | energia -0.2884 parowania 0.1763 sklad 0.0000 | val odzysk 0.3126 CE 1.5505 | 6s  (bez poprawy 3/10)
+[19/60] CE 2.0319 | energia -0.2879 parowania 0.1765 sklad 0.0000 | val odzysk 0.3041 CE 1.5561 | 6s  (bez poprawy 4/10)
+[20/60] CE 2.0168 | energia -0.2892 parowania 0.1766 sklad 0.0000 | val odzysk 0.3105 CE 1.5653 | 6s  (bez poprawy 5/10)
+[21/60] CE 2.0017 | energia -0.2874 parowania 0.1768 sklad 0.0000 | val odzysk 0.3100 CE 1.5624 | 6s  (bez poprawy 6/10)
+[22/60] CE 1.9911 | energia -0.2876 parowania 0.1767 sklad 0.0000 | val odzysk 0.3129 CE 1.5884 | 6s  (bez poprawy 7/10)
+[23/60] CE 1.9721 | energia -0.2882 parowania 0.1769 sklad 0.0000 | val odzysk 0.3072 CE 1.5784 | 6s  (bez poprawy 8/10)
+[24/60] CE 1.9573 | energia -0.2876 parowania 0.1773 sklad 0.0000 | val odzysk 0.3104 CE 1.5983 | 6s  (bez poprawy 9/10)
+[25/60] CE 1.9497 | energia -0.2884 parowania 0.1769 sklad 0.0000 | val odzysk 0.3127 CE 1.5991 | 6s  (bez poprawy 10/10)
+early stopping
+
+najlepszy (odzysk) na walidacji: 0.3147 | checkpoints/e2_sklad0.pt

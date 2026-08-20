@@ -1,13 +1,5 @@
 # Eksperymenty i wyniki
 
-> **STATUS: WYNIKI NIEPOLICZONE.** Kod jest gotowy i przetestowany, ale czeka na odsianie redundancji
-> natywnym `cd-hit-est`, co wymaga WSL — instalacja opisana w [README](README.md). Liczby pojawią się tutaj po
-> uruchomieniu `python run.py dane`, `E1` i `E2`.
->
-> Wcześniejsze wyniki tego kodu, policzone na gotowym snapshocie po cd-hit z innej maszyny, zostały
-> **usunięte razem z tym snapshotem** — nie chcemy raportować liczb, których nie da się w tym
-> repozytorium odtworzyć od początku.
-
 Architektura i funkcja straty: [MODEL.md](MODEL.md).
 Analiza danych: [notebooks/01_dane.ipynb](notebooks/01_dane.ipynb).
 Wykresy wyników: [notebooks/02_wyniki.ipynb](notebooks/02_wyniki.ipynb).
@@ -58,8 +50,36 @@ i oddaje większość walidacji jednej rodzinie — test mierzyłby wtedy różn
 generalizację. [`src/split.py`](src/split.py) minimalizuje naraz trzy rzeczy: odchylenie liczebności
 od 60/20/20, odchylenie rozkładu długości od całej puli oraz dominację pojedynczej rodziny.
 
-**Ograniczenie, którego nie da się usunąć:** największe rodziny zdominują trening, bo rodziny nie
-wolno rozdzielić między zbiory.
+### Ile czego zostało
+
+```
+pula naturalna <= 200 nt        28 678
+  po cd-hit-est                  8 500   (-70%)
+  po przewadze sparowanych       3 699   (-4801)
+  po kontroli poprawnosci        3 699
+
+Eterna <= 50 nt                     18
+  po cd-hit-est                     15   (3 zagadki byly wzajemnymi duplikatami)
+  po przewadze sparowanych          11   (-4)
+```
+
+Podział rodzinowy, 340 rodzin:
+
+```
+        n     rodzin  mediana L  <=50 nt  max rodzina   najwieksze
+train  2220    110       78        12        63%        tRNA, 5S, SNORA38
+val     740    117       89        23        31%        16S, mir-154, T-box
+test    739    113       92        14        14%        SRP, RNaseP, U2
+
+rodziny wspolne miedzy zbiorami: 0
+```
+
+**Ograniczenie, którego nie da się usunąć:** największe rodziny zdominują trening (63% tRNA),
+bo rodziny nie wolno rozdzielić między zbiory.
+
+**Eterna została z 11 zagadkami.** Po odsianiu duplikatów i filtrze przewagi sparowanych zbiór jest
+tak mały, że każdy wynik na nim ma ogromny słupek niepewności — różnica jednej zagadki to 9 punktów
+procentowych.
 
 ---
 
@@ -84,7 +104,59 @@ powiedzieć, czy model czegokolwiek się nauczył.
 
 ## Wyniki
 
-*Do uzupełnienia po uruchomieniu eksperymentów.*
+Zbiór testowy, generowanie zachłanne, jeden przebieg na strukturę.
+
+```
+model                  0-50    51-100   101-200   Eterna   odzysk   dE/nt
+                       n=14     n=451     n=274     n=11   (51-100 nt)
+baseline losowy        2/14     3/451     0/274     2/11    0,261   -0,047
+E1  sklad 1,7          8/14   187/451    33/274     7/11    0,301   -0,224
+E2  sklad 0           10/14   190/451    52/274     7/11    0,298   -0,232
+E2  sklad 40          10/14   277/451    84/274     6/11    0,280   -0,289
+```
+
+### 1. Model uczy się czegoś realnego
+
+Baseline losuje litery z naturalnych częstości, zachowując komplementarność par. Rozwiązuje
+**3 na 451**. Najlepszy model **277**. To jest dziewięćdziesięciokrotna przewaga i odpowiedź na
+pytanie, czy sama komplementarność wystarcza — nie wystarcza.
+
+Odzysk sekwencji naturalnej 0,28–0,30 wobec 0,26 dla losowania. Przewaga realna, ale niewielka:
+model nie odtwarza konkretnej sekwencji, tylko projektuje własną.
+
+### 2. Kara za skład przy wadze 1,7 NIE szkodzi
+
+```
+sklad 1,7    187/451
+sklad 0      190/451
+```
+
+Praktycznie tyle samo. **To jest istotna zmiana wobec wcześniejszych pomiarów** na danych odsianych
+reimplementacją w Pythonie, gdzie ta sama para wag dawała 32 wobec 248. Tamten dramatyczny rozjazd
+**nie powtórzył się** na danych odsianych prawdziwym cd-hit-est i należy go uznać za artefakt.
+
+### 3. Silna kara pomaga na danych naturalnych, szkodzi na Eternie
+
+```
+                     test naturalny        Eterna
+sklad 0             190/451, 52/274         7/11
+sklad 40            277/451, 84/274         6/11
+```
+
+Na strukturach naturalnych waga 40 daje wyraźnie więcej rozwiązań, na Eternie o jedną mniej. Przy
+n = 11 ta różnica jest w granicach szumu i nie należy z niej wyciągać wniosków.
+
+### 4. Energia jest ujemna dla wszystkich modeli
+
+`dE/nt` od −0,22 do −0,29, więc nasze sekwencje stabilizują strukturę docelową **lepiej niż
+sekwencje naturalne**. Baseline też jest ujemny (−0,047), ale wielokrotnie słabiej.
+
+### 5. Struktury długie pozostają problemem
+
+Kubełek 101–200 nt: najlepiej 84 na 274, czyli niecała jedna trzecia. Model działa dobrze do około
+100 nt i dalej wyraźnie słabnie.
+
+---
 
 Raportujemy trzy miary:
 

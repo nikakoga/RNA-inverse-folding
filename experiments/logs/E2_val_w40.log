@@ -1,0 +1,10 @@
+C:\Users\janle\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\transformer.py:385: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+checkpoints/e2_sklad40.pt
+zbior VAL: 740 struktur | Eterna <= 50 nt: 18
+
+zbior          dlugosc     n  rozwiazane   odzysk    dE/nt
+val               0-50    23       16/23    0.338  -0.1607
+val             51-100   505     306/505    0.298  -0.2626
+val            101-200   212      69/212    0.300  -0.2433
+eterna<=50        0-50    18        8/18    0.565  -0.0456
