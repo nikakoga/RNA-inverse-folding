@@ -1,16 +1,12 @@
 """Enkoder-only, NIEAUTOREGRESYJNY projektant RNA.
 
-PO CO TA ARCHITEKTURA — dwa problemy starego modelu, które usuwa u źródła:
+BEZ DEKODERA. Enkoder patrzy na całą strukturę naraz, a wszystkie pozycje przewidujemy w JEDNYM
+przebiegu. Pozycje i oraz j tworzące parę są z definicji wybierane wspólnie, więc generowanie
+lewo-do-prawa byłoby tu sztucznym ograniczeniem.
 
-1. STARY MODEL PISAŁ LEWO-DO-PRAWA. poprzedni model autoregresyjny to enkoder-dekoder z maską przyczynową
-   i pętlą token po tokenie. Pozycja 30 nie wiedziała, co stanie na pozycji 3, dopóki tam nie doszła,
-   choć obie tworzą PARĘ i ich wybór jest z definicji wspólny. Tutaj nie ma dekodera: enkoder patrzy
-   na całą strukturę naraz, a wszystkie pozycje przewidujemy w JEDNYM przebiegu.
-
-2. ODCHYLENIE EKSPOZYCJI ZNIKA. Skoro nie ma autoregresji, nie ma teacher forcingu — model podczas
-   uczenia i podczas generowania robi DOKŁADNIE to samo. To dlatego trzy komponenty ze specyfikacji
-   promotora (energia, alternatywne parowania, skład) można tu wstawić wprost do funkcji straty
-   i nie potrzeba RL, które w E24/E25 służyło wyłącznie obejściu tego problemu.
+BEZ TEACHER FORCINGU, więc nie ma odchylenia ekspozycji: model podczas uczenia i podczas generowania
+robi dokładnie to samo. Dzięki temu komponenty energetyczne i składu wstawiamy wprost do funkcji
+straty, licząc je na tych samych rozkładach, z których powstaje sekwencja.
 
 DWIE GŁOWICE:
 
@@ -18,9 +14,8 @@ DWIE GŁOWICE:
                             para (i,j) rozstrzygana WSPÓLNIE z połączonych reprezentacji h_i i h_j
     pozycje NIESPAROWANE -> jedna z 4 zasad
 
-Kanoniczność jest tu własnością WYJŚCIA, nie maski nakładanej po fakcie: klasy "A-C" po prostu nie ma.
-Stary model wybierał literę osobno na i oraz na j i dopiero maska pilnowała zgodności — co w E23
-doprowadziło do błędu, gdzie strata liczyła się na rozkładzie surowym, a generowanie na maskowanym.
+Kanoniczność jest własnością WYJŚCIA, nie maski nakładanej po fakcie: klasy "A-C" po prostu nie ma.
+Strata i generowanie liczą się więc na tym samym rozkładzie.
 
 Konwencja kierunku: głowica par działa na pozycji OTWIERAJĄCEJ (i < j) i zwraca rozkład dla
 uporządkowanej pary (zasada na i, zasada na j). Pozycja zamykająca bierze literę stąd, nie z osobnej

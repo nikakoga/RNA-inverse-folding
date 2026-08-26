@@ -19,6 +19,15 @@ PAIR_TO_CLASS = {p: i for i, p in enumerate(PAIRS)}
 N_PAIR_CLASSES = len(PAIRS)
 PAIR_TO_BASE_IDX = torch.tensor([[BASE_TO_IDX[a], BASE_TO_IDX[b]] for a, b in PAIRS], dtype=torch.long)
 
+# Sklad NATURALNY. JEDNO ZRODLO PRAWDY dla calego projektu: uzywa go i kara za sklad w E1
+# (`src/loss.py`), i baseline `losowa_kanoniczna` ponizej — dzieki temu obie strony porownania mowia
+# o tym samym rozkladzie i nie moga sie po cichu rozjechac.
+#
+# Zmierzony na TRZECH OPUBLIKOWANYCH BAZACH struktur RNA (bpRNA, RNAStrAlign, ArchiveII; n = 29 571),
+# z wykluczeniem struktur obecnych w naszej walidacji albo tescie. Odtworzenie: `python -m src.cele`.
+NATURAL_LOOP = {"A": 0.324, "C": 0.208, "G": 0.217, "U": 0.252}   # zasady na pozycjach NIESPAROWANYCH
+NATURAL_PAIR = {"GC": 0.599, "AU": 0.276, "GU": 0.124}            # udzialy TYPOW par
+
 
 def parse_pairs(struct: str) -> list[tuple[int, int]]:
     """Lista par (i, j), i < j, z notacji kropkowo-nawiasowej."""
@@ -43,6 +52,34 @@ def paired_fraction(struct: str) -> float:
     """Ułamek pozycji SPAROWANYCH. Używane w filtrze „przewaga sparowanych"."""
     n = len(struct)
     return 0.0 if n == 0 else 2 * len(parse_pairs(struct)) / n
+
+
+MIN_SPINKA = 3
+
+
+def rozmiary_spinek(struct: str) -> list[int]:
+    """Rozmiary wszystkich petli spinki, czyli liczba niesparowanych pozycji w kazdej z nich.
+
+    Petla jest spinka wtedy i tylko wtedy, gdy otacza ja DOKLADNIE JEDNA para: wszystkie pozycje
+    miedzy i a j sa niesparowane. Gdyby w srodku byla choc jedna para, mielibysmy wybrzuszenie,
+    petle wewnetrzna albo multipetle — zaleznie od tego, ile helis domyka petle.
+    """
+    par = partner_array(struct)
+    out = []
+    for i, j in parse_pairs(struct):
+        if all(par[k] < 0 for k in range(i + 1, j)):
+            out.append(j - i - 1)
+    return out
+
+
+def spinki_mozliwe(struct: str) -> bool:
+    """Czy KAZDA petla spinki ma co najmniej MIN_SPINKA niesparowanych pozycji.
+
+    Szkielet cukrowo-fosforanowy nie potrafi zawrocic na mniej niz trzech nukleotydach, wiec petla
+    krotsza nie istnieje fizycznie — model Turnera zwraca dla niej nieskonczonosc. Takie struktury
+    biora sie z rzutowania struktury KONSENSUSOWEJ Rfam na pojedyncza sekwencje.
+    """
+    return all(r >= MIN_SPINKA for r in rozmiary_spinek(struct))
 
 
 def motyw_pozycji(struct: str) -> list[str]:
@@ -137,7 +174,8 @@ def losowa_kanoniczna(struct: str, czestosci: dict | None = None, rng=None) -> s
     """
     import random
     rng = rng or random
-    cz = czestosci or {"loop": [0.330, 0.198, 0.213, 0.259], "pair": [0.555, 0.321, 0.125]}
+    cz = czestosci or {"loop": [NATURAL_LOOP[b] for b in BASES],
+                       "pair": [NATURAL_PAIR[k] for k in ("GC", "AU", "GU")]}
     s = [""] * len(struct)
     typy = [("G", "C"), ("A", "U"), ("G", "U")]
     for i, j in parse_pairs(struct):

@@ -1,20 +1,21 @@
-"""Trzy komponenty ze specyfikacji promotora, liczone WPROST na rozkładach modelu NAR.
+"""Komponenty straty, liczone WPROST na rozkładach modelu.
 
-DLACZEGO TU JEST PROŚCIEJ NIŻ W E23. Model nieautoregresyjny przewiduje parę (i,j) jako jedną z SZEŚCIU
-klas kanonicznych, więc rozkład łączny na parze mamy bezpośrednio z softmaxu — nie trzeba go sklejać
-z dwóch niezależnych rozkładów ani maskować po fakcie. 
-Nie ma też teacher forcingu, więc rozkłady, na których liczymy kary, są DOKŁADNIE tymi, z których
-model próbkuje przy generowaniu. To dlatego nie potrzeba RL.
+Model przewiduje parę (i,j) jako jedną z SZEŚCIU klas kanonicznych, więc rozkład łączny na parze
+mamy bezpośrednio z softmaxu. Nie ma teacher forcingu, więc rozkłady, na których liczymy kary, są
+dokładnie tymi, z których model korzysta przy generowaniu.
 
-VIENNARNA UŻYWAMY WYŁĄCZNIE DO ODCZYTU TABLIC TURNERA (`RNA.param`), raz przy starcie. Żadnego
-`RNA.fold` ani `RNA.pf`.
+VIENNARNA UŻYWAMY WYŁĄCZNIE DO ODCZYTU TABLIC TURNERA (`RNA.param`), raz przy starcie.
 
 CO LICZYMY W ENERGII (człony zależne od SEKWENCJI; człony zależne wyłącznie od kształtu struktury
 skracają się w różnicy wobec referencji, więc ich nie potrzebujemy):
-  * stosy par            — tablica `stack`, 6x6 kombinacji klas
-  * kary terminalne AU/GU na końcach helis — `TerminalAU`
-  * niedopasowanie pętli spinki — `mismatchH`; TEGO CZŁONU BRAKOWAŁO W E23, a odpowiada za medianę
-    26% pełnej delty energii (pomiar na Eternie /61)
+  * stosy par                              — tablica `stack`, 6x6 kombinacji klas
+  * kary terminalne AU/GU na koncach helis — `TerminalAU`
+  * niedopasowanie petli spinki            — `mismatchH`
+
+KARY ZA SKLAD — dwie konkurencyjne konstrukcje, ktore porownuja E1 i E2. Obie licza sie PER
+SEKWENCJA, potem srednia po partii; roznia sie wylacznie KSZTALTEM:
+  * `sklad`                    odleglosc TV od celu naturalnego — DWUSTRONNA (karze tez nadmiar)
+  * `sklad_zasad`, `sklad_par` progi dolne udzialow            — JEDNOSTRONNA (tylko niedobor)
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from __future__ import annotations
 import torch
 import RNA
 
-from src.dataset import PAIRS, BASES
+from src.dataset import PAIRS, BASES, NATURAL_LOOP, NATURAL_PAIR
 
 # Kodowanie typów par w tablicach ViennaRNA. 0 = para niedozwolona.
 VRNA_PT = {("C", "G"): 1, ("G", "C"): 2, ("G", "U"): 3, ("U", "G"): 4, ("A", "U"): 5, ("U", "A"): 6}
@@ -31,10 +32,21 @@ VRNA_BASE = {"A": 1, "C": 2, "G": 3, "U": 4}
 _P = RNA.param(RNA.md())
 _EPS = 1e-9
 
-# Sklad NATURALNY — cel komponentu skladu. Zmierzony na tej samej puli po natywnym cd-hit,
-# ktora jest wejsciem do src/prepare.py. To samo zrodlo, z ktorego losuje baseline.
-NATURAL_LOOP = {"A": 0.330, "C": 0.198, "G": 0.213, "U": 0.259}   # zasady na pozycjach NIESPAROWANYCH
-NATURAL_PAIR = {"GC": 0.555, "AU": 0.321, "GU": 0.125}            # udzialy TYPOW par
+# Sklad NATURALNY — cel kary za sklad w E1. Definicja stoi w `src/dataset.py`, zeby kara i baseline
+# korzystaly z JEDNEJ stalej. Zmierzony na bpRNA + RNAStrAlign + ArchiveII (n = 29 571), z wykluczeniem
+# struktur obecnych w naszej walidacji albo tescie; odtworzenie: `python -m src.cele`.
+#
+# Nie przepisujemy tu liczb z NEMO (Portela, bioRxiv 345587). Zmierzone G:C 0,599 pokrywa sie z jego
+# priorem 0,593, ale A:U 0,333 i G:U 0,074 juz nie, bo NEMO celowo tlumi pary chwiejne dla
+# niezawodnosci zwijania — i z tego samego powodu wypelnia petle w 93% adenina. To sa decyzje
+# PROJEKTOWE, nie opis natury: jako cel popchnelyby model wprost ku degeneracji poli-A.
+
+# PROGI DOLNE ze specyfikacji promotora — uzywane przez `sklad_zasad` i `sklad_par`.
+# To NIE sa cele, tylko MINIMA: kara pojawia sie dopiero ponizej progu, nadmiar jest bezkarny.
+# Sumy progow musza byc mniejsze od 1, inaczej zadna sekwencja nie moglaby ich wszystkich spelnic
+# (tu 0,90 i 0,75).
+PROG_ZASADY = {"A": 0.15, "C": 0.30, "G": 0.30, "U": 0.15}
+PROG_PARY = {"GC": 0.50, "AU": 0.20, "GU": 0.05}
 
 
 def tabela_stosow(device) -> torch.Tensor:
@@ -113,6 +125,9 @@ class KomponentyNAR:
         dop = torch.tensor([NATURAL_LOOP[b] for b in BASES])
         self.cel_pary = (cel_pary if cel_pary is not None else dom).to(device)   # (3,) G:C/A:U/G:U
         self.cel_petle = (cel_petle if cel_petle is not None else dop).to(device)  # (4,) A,C,G,U
+        # Progi dolne dla kary ze specyfikacji promotora.
+        self.prog_zasady = torch.tensor([PROG_ZASADY[b] for b in BASES]).to(device)      # (4,)
+        self.prog_pary = torch.tensor([PROG_PARY[k] for k in ("GC", "AU", "GU")]).to(device)  # (3,)
 
     # ---------------------------------------------------------------- energia
     def energia(self, p_par, p_zasad, partner, otw, realne) -> torch.Tensor:
@@ -158,10 +173,7 @@ class KomponentyNAR:
         niesparowane po jednej. Dzielimy przez kwadrat długości, bo iloczyn liczebności rośnie
         kwadratowo z długością.
         """
-        n_par = torch.einsum("bic,cke->bk", p_par * otw.unsqueeze(-1).float(),
-                             self.par2kol.sum(-1).unsqueeze(-1)).squeeze(-1) \
-            if False else torch.einsum("bic,ck->bk", p_par * otw.unsqueeze(-1).float(),
-                                       self.par2kol.sum(-1))
+        n_par = torch.einsum("bic,ck->bk", p_par * otw.unsqueeze(-1).float(), self.par2kol.sum(-1))
         niespar = (partner < 0) & realne.bool()
         n_nsp = (p_zasad * niespar.unsqueeze(-1).float()).sum(1)
         n = n_par + n_nsp                                     # (B,4) w kolejności A,C,G,U
@@ -173,26 +185,85 @@ class KomponentyNAR:
     def sklad(self, p_par, p_zasad, partner, otw, realne) -> torch.Tensor:
         """Odleglosc skladu od NATURALNEGO, osobno dla par i osobno dla petli.
 
-        PARY mierzymy jako TYPY (G:C / A:U / G:U), nie jako liczebnosci pojedynczych zasad.
-        To jest ta sama jednostka, ktorej uzywaly wczesniejsze eksperymenty (`NATURAL_PAIR`
-        w `energy_metrics.py`) — dzieki temu liczby sa porownywalne miedzy faza stara i nowa,
-        a kara trafia wprost w to, co chcemy ograniczyc: nadmiar par G:C.
+        PARY mierzymy jako TYPY (G:C / A:U / G:U), nie jako liczebnosci pojedynczych zasad — kara
+        trafia wtedy wprost w to, co chcemy ograniczyc: nadmiar par G:C.
 
-        Cel bierzemy ze STALYCH `NATURAL_LOOP` / `NATURAL_PAIR`, czyli z tego samego zrodla co
-        baseline NEMO, a nie przeliczamy go z wlasnego zbioru treningowego. Inaczej cel zmienialby
-        sie z podzialem danych i wyniki przestalyby byc porownywalne miedzy eksperymentami.
+        Cel bierzemy ze STALYCH `NATURAL_LOOP` / `NATURAL_PAIR`, a nie przeliczamy go z wlasnego
+        zbioru treningowego. Inaczej cel zmienialby sie z podzialem danych i wyniki przestalyby byc
+        porownywalne miedzy eksperymentami.
+
+        LICZONE PER SEKWENCJA, potem srednia po partii — tak samo jak kara ze specyfikacji promotora.
+        Gdyby liczyc na rozkladach zagregowanych po calej partii, kara bylaby spelniona "w sredniej":
+        pojedyncza sekwencja moglaby byc calkiem zdegenerowana, dopoki inne kompensuja jej odchylenie.
+
+        Kazda sekwencja ma i pary, i pozycje niesparowane: filtr `paired_fraction >= 0.5` wymusza to
+        pierwsze, a domkniecie helisy petla — to drugie. Oba czlony sa wiec zawsze okreslone.
         """
-        # typy par: klasy 0,1 = G:C; 2,3 = A:U; 4,5 = G:U
-        wagi = p_par * otw.unsqueeze(-1).float()
-        typy = torch.stack([wagi[..., 0] + wagi[..., 1],
-                            wagi[..., 2] + wagi[..., 3],
-                            wagi[..., 4] + wagi[..., 5]], dim=-1).sum(dim=(0, 1))
-        r_par = typy / typy.sum().clamp_min(_EPS)
+        # typy par: klasy 0,1 = G:C; 2,3 = A:U; 4,5 = G:U            -> (B,3)
+        r_par = self._udzialy_typow_par(p_par, otw)
 
         niespar = (partner < 0) & realne.bool()
-        n_nsp = (p_zasad * niespar.unsqueeze(-1).float()).sum(dim=(0, 1))
-        r_nsp = n_nsp / n_nsp.sum().clamp_min(_EPS)
+        n_nsp = (p_zasad * niespar.unsqueeze(-1).float()).sum(1)                    # (B,4)
+        r_nsp = n_nsp / n_nsp.sum(-1, keepdim=True).clamp_min(_EPS)
 
-        d_par = 0.5 * (r_par - self.cel_pary).abs().sum()
-        d_nsp = 0.5 * (r_nsp - self.cel_petle).abs().sum()
-        return d_par + d_nsp
+        d_par = 0.5 * (r_par - self.cel_pary).abs().sum(-1)                         # (B,)
+        d_nsp = 0.5 * (r_nsp - self.cel_petle).abs().sum(-1)                        # (B,)
+        return (d_par + d_nsp).mean()
+
+    # -------------------------------------------------- kara skladu wg specyfikacji promotora
+    def _udzialy_zasad(self, p_par, p_zasad, partner, otw, realne):
+        """Oczekiwane udzialy A/C/G/U w CALEJ sekwencji, per sekwencja. (B,4)."""
+        n_par = torch.einsum("bic,ck->bk", p_par * otw.unsqueeze(-1).float(), self.par2kol.sum(-1))
+        niespar = (partner < 0) & realne.bool()
+        n_nsp = (p_zasad * niespar.unsqueeze(-1).float()).sum(1)
+        return (n_par + n_nsp) / realne.sum(1, keepdim=True).clamp(min=1)
+
+    def _udzialy_typow_par(self, p_par, otw):
+        """Oczekiwane udzialy typow par G:C / A:U / G:U, per sekwencja. (B,3)."""
+        w = p_par * otw.unsqueeze(-1).float()
+        typy = torch.stack([w[..., 0] + w[..., 1],      # G-C i C-G
+                            w[..., 2] + w[..., 3],      # A-U i U-A
+                            w[..., 4] + w[..., 5]],     # G-U i U-G
+                           dim=-1).sum(1)
+        return typy / typy.sum(-1, keepdim=True).clamp_min(_EPS)
+
+    def sklad_zasad(self, p_par, p_zasad, partner, otw, realne) -> torch.Tensor:
+        """DistribLoss ze specyfikacji promotora — udzialy zasad w calej sekwencji.
+
+            x = max(prog - udzial, 0) / prog        dla kazdej z czterech zasad
+            DistribLoss = (x_A + x_C + x_G + x_U) / 4
+
+        JEDNOSTRONNA: karzemy wylacznie NIEDOBOR. Nadmiar zostaje bez kary, wiec kara nie ciagnie
+        kazdej sekwencji do sredniej populacyjnej i nie zabija zmiennosci biologicznej. Brak zasady
+        calkowicie daje x = 1, czyli maksimum.
+
+        Dzielenie przez prog wyrownuje wklad zasad o roznych progach: brak cytozyny przy progu 0,30
+        i brak adeniny przy progu 0,15 daja te sama jedynke.
+
+        Liczone PER SEKWENCJA, potem srednia po partii — tak samo jak `sklad`. Roznica miedzy
+        obiema karami lezy wylacznie w KSZTALCIE: tu prog dolny (kara tylko za niedobor), tam
+        odleglosc TV od celu (kara takze za nadmiar).
+        """
+        u = self._udzialy_zasad(p_par, p_zasad, partner, otw, realne)
+        x = (self.prog_zasady - u).clamp(min=0) / self.prog_zasady
+        return (x.sum(-1) / 4).mean()
+
+    def sklad_par(self, p_par, otw) -> torch.Tensor:
+        """DistribLoss3 + DistribLoss4 ze specyfikacji promotora — udzialy TYPOW par.
+
+            a, b, c        = max(prog - udzial, 0) / prog   dla G:C, A:U, G:U
+            DistribLoss3   = (a + b + c) / 3
+            DistribLoss4   = max((a + b + c) - 1, 0)
+
+        DistribLoss4 to ESKALACJA. Dopoki zawodzi jeden typ pary, dochodzi zero. Dopiero gdy
+        sumaryczny niedobor przekroczy 1 — czyli zawodza co najmniej dwa typy — dokladana jest kara
+        dodatkowa. Sekwencja bez jednego typu par jest tolerowana, bez dwoch — karana podwojnie.
+
+        UWAGA DO ZAPISU ZE SPECYFIKACJI: w oryginale w tej czesci uzyto zmiennych `c` i `g`
+        z poprzedniego bloku (udzialy cytozyny i guaniny) zamiast udzialow par A:U i G:U. Z kontekstu
+        wynika, ze chodzilo o udzialy par — i tak to zaimplementowano.
+        """
+        u = self._udzialy_typow_par(p_par, otw)
+        v = (self.prog_pary - u).clamp(min=0) / self.prog_pary
+        s = v.sum(-1)
+        return (s / 3 + (s - 1.0).clamp(min=0)).mean()

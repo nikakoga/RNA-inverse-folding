@@ -1,5 +1,7 @@
-model,zbior,dlugosc,n,rozwiazane,odzysk,dE_nt
-baseline losowy kanoniczny,test,0-50,14,2,0.2526073997320056,0.011283115028497942
-baseline losowy kanoniczny,test,51-100,451,3,0.26101667311423865,-0.04678097632205147
-baseline losowy kanoniczny,test,101-200,274,0,0.26417108804066136,-0.01810968889867056
-baseline losowy kanoniczny,eterna<=50,0-50,11,2,0.31011916497523845,0.14233405454662462
+model,kara,zbior,dlugosc,n,identycznosc_nt,identycznosc_par,dE_nt,perplexity
+baseline losowy kanoniczny,brak kary za sklad,test,<= 50 nt,14,23.439641144373528,49.36098623598624,0.046465513543629364,
+baseline losowy kanoniczny,brak kary za sklad,test,<= 100 nt,458,26.208301111280836,41.5964378434088,-0.061586796549678156,
+baseline losowy kanoniczny,brak kary za sklad,test,<= 200 nt,728,26.25035426667574,41.51618225196602,-0.053076825813429096,
+baseline losowy kanoniczny,brak kary za sklad,eterna,<= 50 nt,12,33.2987444627937,52.35729140140904,0.12593992697312623,
+baseline losowy kanoniczny,brak kary za sklad,eterna,<= 100 nt,22,33.95046548503054,53.098519497140515,0.14023071433152648,
+baseline losowy kanoniczny,brak kary za sklad,eterna,<= 200 nt,39,32.937615312211136,53.433749757159,0.13935049237680372,

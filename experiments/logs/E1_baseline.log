@@ -1,10 +1,17 @@
 baseline losowy kanoniczny
-zbior TEST: 739 struktur | Eterna <= 50 nt: 18
+zbior TEST: 728 struktur | Eterna <= 200 nt: 39
+wlasna kara za sklad: brak kary za sklad
 
-zbior          dlugosc     n  rozwiazane   odzysk    dE/nt
-test              0-50    14        2/14    0.253   0.0113
-test            51-100   451       3/451    0.261  -0.0468
-test           101-200   274       0/274    0.264  -0.0181
-eterna<=50        0-50    18        3/18    0.326   0.1546
+zbior         dlugosc     n  identycznosc_nt  identycznosc_par    dE/nt
+test         <= 50 nt    14            23.4%             49.4%   0.0465
+test        <= 100 nt   458            26.2%             41.6%  -0.0616
+test        <= 200 nt   728            26.3%             41.5%  -0.0531
+eterna       <= 50 nt    12            33.3%             52.4%   0.1259
+eterna      <= 100 nt    22            34.0%             53.1%   0.1402
+eterna      <= 200 nt    39            32.9%             53.4%   0.1394
+
+Kubelki NARASTAJACE: wiersz '<= 100 nt' obejmuje takze struktury krotsze niz 50 nt.
+Kary liczone na WYGENEROWANYCH sekwencjach, a w treningu na rozkladach prawdopodobienstwa
+— liczby nie zgadzaja sie z logiem treningu i to nie jest blad.
 
 zapisano: experiments/analysis/baseline_test.csv

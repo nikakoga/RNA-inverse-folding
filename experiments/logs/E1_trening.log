@@ -1,43 +1,32 @@
 C:\Users\janle\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\transformer.py:385: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
   warnings.warn(
-urzadzenie cuda | struktur 3699 | podzial rodzinowy
-train 2220  val 740  test 739
-cel skladu: petle {'A': 0.33, 'C': 0.198, 'G': 0.213, 'U': 0.259}  pary {'GC': 0.555, 'AU': 0.321, 'GU': 0.125}
-wagi kar: energia 1.0  parowania 6.0  sklad 1.7 | wybor epoki: odzysk
+urzadzenie cuda | struktur 3640 | podzial rodzinowy
+train 2185  val 727  test 728
+wagi kar: energia 1.0  parowania 6.0
+  sklad TV (nasz):        waga 1.0  cel petle {'A': 0.324, 'C': 0.208, 'G': 0.217, 'U': 0.252}  cel pary {'GC': 0.599, 'AU': 0.276, 'GU': 0.124}
+wybor epoki: zlozony
 parametry: 5.04 mln
-[1/60] CE 2.9073 | energia -0.2043 parowania 0.1906 sklad 0.0594 | val odzysk 0.2947 CE 1.5256 | 7s  *najlepszy -> zapis
-[2/60] CE 2.7693 | energia -0.2133 parowania 0.1905 sklad 0.0436 | val odzysk 0.2926 CE 1.5450 | 6s  (bez poprawy 1/10)
-[3/60] CE 2.6699 | energia -0.2119 parowania 0.1905 sklad 0.0449 | val odzysk 0.2955 CE 1.5556 | 6s  *najlepszy -> zapis
-[4/60] CE 2.5966 | energia -0.2135 parowania 0.1901 sklad 0.0550 | val odzysk 0.2913 CE 1.5570 | 6s  (bez poprawy 1/10)
-[5/60] CE 2.5464 | energia -0.2112 parowania 0.1904 sklad 0.0407 | val odzysk 0.2889 CE 1.5531 | 6s  (bez poprawy 2/10)
-[6/60] CE 2.4938 | energia -0.2152 parowania 0.1906 sklad 0.0409 | val odzysk 0.2938 CE 1.5017 | 6s  (bez poprawy 3/10)
-[7/60] CE 2.4486 | energia -0.2143 parowania 0.1906 sklad 0.0415 | val odzysk 0.3017 CE 1.5024 | 6s  *najlepszy -> zapis
-[8/60] CE 2.3988 | energia -0.2168 parowania 0.1906 sklad 0.0396 | val odzysk 0.3049 CE 1.4960 | 6s  *najlepszy -> zapis
-[9/60] CE 2.3502 | energia -0.2174 parowania 0.1913 sklad 0.0388 | val odzysk 0.3099 CE 1.4962 | 6s  *najlepszy -> zapis
-[10/60] CE 2.3095 | energia -0.2171 parowania 0.1910 sklad 0.0358 | val odzysk 0.3075 CE 1.4858 | 6s  (bez poprawy 1/10)
-[11/60] CE 2.2742 | energia -0.2189 parowania 0.1907 sklad 0.0391 | val odzysk 0.3105 CE 1.4856 | 6s  *najlepszy -> zapis
-[12/60] CE 2.2422 | energia -0.2191 parowania 0.1909 sklad 0.0341 | val odzysk 0.3088 CE 1.4853 | 6s  (bez poprawy 1/10)
-[13/60] CE 2.2086 | energia -0.2189 parowania 0.1911 sklad 0.0333 | val odzysk 0.3085 CE 1.4861 | 6s  (bez poprawy 2/10)
-[14/60] CE 2.1846 | energia -0.2196 parowania 0.1911 sklad 0.0380 | val odzysk 0.3100 CE 1.4851 | 6s  (bez poprawy 3/10)
-[15/60] CE 2.1626 | energia -0.2187 parowania 0.1913 sklad 0.0329 | val odzysk 0.3142 CE 1.4833 | 6s  *najlepszy -> zapis
-[16/60] CE 2.1353 | energia -0.2197 parowania 0.1910 sklad 0.0358 | val odzysk 0.3140 CE 1.4877 | 6s  (bez poprawy 1/10)
-[17/60] CE 2.1148 | energia -0.2206 parowania 0.1909 sklad 0.0360 | val odzysk 0.3091 CE 1.4830 | 6s  (bez poprawy 2/10)
-[18/60] CE 2.0922 | energia -0.2209 parowania 0.1910 sklad 0.0329 | val odzysk 0.3075 CE 1.4876 | 6s  (bez poprawy 3/10)
-[19/60] CE 2.0720 | energia -0.2204 parowania 0.1910 sklad 0.0357 | val odzysk 0.3123 CE 1.4889 | 6s  (bez poprawy 4/10)
-[20/60] CE 2.0559 | energia -0.2197 parowania 0.1912 sklad 0.0313 | val odzysk 0.3100 CE 1.4929 | 7s  (bez poprawy 5/10)
-[21/60] CE 2.0456 | energia -0.2204 parowania 0.1910 sklad 0.0343 | val odzysk 0.3022 CE 1.5037 | 6s  (bez poprawy 6/10)
-[22/60] CE 2.0246 | energia -0.2205 parowania 0.1912 sklad 0.0334 | val odzysk 0.3117 CE 1.5004 | 6s  (bez poprawy 7/10)
-[23/60] CE 2.0096 | energia -0.2199 parowania 0.1913 sklad 0.0312 | val odzysk 0.3144 CE 1.4885 | 6s  *najlepszy -> zapis
-[24/60] CE 1.9973 | energia -0.2206 parowania 0.1911 sklad 0.0318 | val odzysk 0.3085 CE 1.4975 | 6s  (bez poprawy 1/10)
-[25/60] CE 1.9860 | energia -0.2189 parowania 0.1914 sklad 0.0270 | val odzysk 0.3103 CE 1.4950 | 6s  (bez poprawy 2/10)
-[26/60] CE 1.9692 | energia -0.2195 parowania 0.1914 sklad 0.0281 | val odzysk 0.3064 CE 1.5135 | 6s  (bez poprawy 3/10)
-[27/60] CE 1.9597 | energia -0.2210 parowania 0.1911 sklad 0.0334 | val odzysk 0.3127 CE 1.5033 | 6s  (bez poprawy 4/10)
-[28/60] CE 1.9495 | energia -0.2212 parowania 0.1914 sklad 0.0280 | val odzysk 0.3126 CE 1.5135 | 6s  (bez poprawy 5/10)
-[29/60] CE 1.9368 | energia -0.2211 parowania 0.1912 sklad 0.0288 | val odzysk 0.3102 CE 1.5106 | 6s  (bez poprawy 6/10)
-[30/60] CE 1.9297 | energia -0.2208 parowania 0.1914 sklad 0.0293 | val odzysk 0.3120 CE 1.5148 | 6s  (bez poprawy 7/10)
-[31/60] CE 1.9208 | energia -0.2205 parowania 0.1912 sklad 0.0256 | val odzysk 0.3124 CE 1.5190 | 6s  (bez poprawy 8/10)
-[32/60] CE 1.9116 | energia -0.2201 parowania 0.1914 sklad 0.0259 | val odzysk 0.3129 CE 1.5230 | 6s  (bez poprawy 9/10)
-[33/60] CE 1.9054 | energia -0.2209 parowania 0.1912 sklad 0.0281 | val odzysk 0.3123 CE 1.5256 | 6s  (bez poprawy 10/10)
+energie referencyjne walidacji: 727 struktur, 0.0s
+[1/60] CE 2.8663 | energia -0.2357 parowania 0.1886 sklad 0.0826 | val ident 0.2972 CE 1.5697 loss 4.2111 dE/nt -0.2495 zlozony 30249 | 6s  *najlepszy -> zapis
+[2/60] CE 2.6493 | energia -0.2412 parowania 0.1874 sklad 0.0823 | val ident 0.2894 CE 1.6005 loss 4.2607 dE/nt -0.2378 zlozony 29238 | 6s  (bez poprawy 1/10)
+[3/60] CE 2.5415 | energia -0.2430 parowania 0.1875 sklad 0.0766 | val ident 0.3013 CE 1.5354 loss 4.1036 dE/nt -0.2683 zlozony 30268 | 6s  *najlepszy -> zapis
+[4/60] CE 2.4602 | energia -0.2466 parowania 0.1879 sklad 0.0727 | val ident 0.3018 CE 1.5115 loss 4.0676 dE/nt -0.2740 zlozony 30274 | 6s  *najlepszy -> zapis
+[5/60] CE 2.3874 | energia -0.2482 parowania 0.1881 sklad 0.0724 | val ident 0.3019 CE 1.5088 loss 4.0460 dE/nt -0.2753 zlozony 30275 | 6s  *najlepszy -> zapis
+[6/60] CE 2.3302 | energia -0.2484 parowania 0.1880 sklad 0.0727 | val ident 0.3049 CE 1.4984 loss 4.0257 dE/nt -0.2765 zlozony 30277 | 6s  *najlepszy -> zapis
+[7/60] CE 2.2816 | energia -0.2493 parowania 0.1878 sklad 0.0750 | val ident 0.3070 CE 1.4949 loss 4.0175 dE/nt -0.2784 zlozony 31278 | 6s  *najlepszy -> zapis
+[8/60] CE 2.2307 | energia -0.2499 parowania 0.1881 sklad 0.0719 | val ident 0.3098 CE 1.4961 loss 4.0159 dE/nt -0.2740 zlozony 31274 | 6s  (bez poprawy 1/10)
+[9/60] CE 2.1955 | energia -0.2504 parowania 0.1880 sklad 0.0739 | val ident 0.3109 CE 1.4874 loss 3.9994 dE/nt -0.2758 zlozony 31276 | 6s  (bez poprawy 2/10)
+[10/60] CE 2.1611 | energia -0.2505 parowania 0.1878 sklad 0.0763 | val ident 0.3126 CE 1.4975 loss 4.0263 dE/nt -0.2910 zlozony 31291 | 6s  *najlepszy -> zapis
+[11/60] CE 2.1268 | energia -0.2512 parowania 0.1880 sklad 0.0729 | val ident 0.3100 CE 1.5088 loss 4.0532 dE/nt -0.2711 zlozony 31271 | 6s  (bez poprawy 1/10)
+[12/60] CE 2.1009 | energia -0.2513 parowania 0.1881 sklad 0.0726 | val ident 0.3124 CE 1.5007 loss 4.0385 dE/nt -0.2752 zlozony 31275 | 6s  (bez poprawy 2/10)
+[13/60] CE 2.0751 | energia -0.2512 parowania 0.1882 sklad 0.0704 | val ident 0.3131 CE 1.4948 loss 4.0169 dE/nt -0.2693 zlozony 31269 | 6s  (bez poprawy 3/10)
+[14/60] CE 2.0521 | energia -0.2516 parowania 0.1881 sklad 0.0714 | val ident 0.3113 CE 1.4937 loss 4.0164 dE/nt -0.2700 zlozony 31270 | 6s  (bez poprawy 4/10)
+[15/60] CE 2.0393 | energia -0.2526 parowania 0.1880 sklad 0.0736 | val ident 0.3133 CE 1.4991 loss 4.0373 dE/nt -0.2642 zlozony 31264 | 6s  (bez poprawy 5/10)
+[16/60] CE 2.0156 | energia -0.2526 parowania 0.1881 sklad 0.0730 | val ident 0.3121 CE 1.5180 loss 4.0737 dE/nt -0.2640 zlozony 31264 | 6s  (bez poprawy 6/10)
+[17/60] CE 1.9982 | energia -0.2530 parowania 0.1881 sklad 0.0729 | val ident 0.3113 CE 1.5072 loss 4.0462 dE/nt -0.2672 zlozony 31267 | 6s  (bez poprawy 7/10)
+[18/60] CE 1.9839 | energia -0.2529 parowania 0.1882 sklad 0.0717 | val ident 0.3109 CE 1.5081 loss 4.0556 dE/nt -0.2586 zlozony 31259 | 6s  (bez poprawy 8/10)
+[19/60] CE 1.9697 | energia -0.2534 parowania 0.1880 sklad 0.0737 | val ident 0.3121 CE 1.5269 loss 4.1013 dE/nt -0.2500 zlozony 31250 | 6s  (bez poprawy 9/10)
+[20/60] CE 1.9543 | energia -0.2533 parowania 0.1882 sklad 0.0715 | val ident 0.3144 CE 1.5134 loss 4.0819 dE/nt -0.2375 zlozony 31237 | 6s  (bez poprawy 10/10)
 early stopping
 
-najlepszy (odzysk) na walidacji: 0.3144 | checkpoints/e1_kary.pt
+najlepszy (zlozony) na walidacji: 31291.0000 | checkpoints/e1_sklad_tv.pt

@@ -2,7 +2,7 @@
 
 DLACZEGO FAMILY-AWARE. Przy podziale losowym po strukturach ta sama rodzina Rfam trafia i do treningu,
 i do testu. Model moze wtedy odtwarzac zapamietany wzorzec rodziny zamiast generalizowac. Zmierzona
-roznica jest duza: odzysk sekwencji spada z 0,49 do 0,31, gdy rodziny sa rozdzielone.
+roznica jest duza: identycznosc sekwencyjna spada z 0,49 do 0,31, gdy rodziny sa rozdzielone.
 
 PUŁAPKA, KTORA TRZEBA OBEJSC. Naiwne pakowanie rodzin po samej liczebnosci wprowadza PRZESUNIECIE
 ROZKLADU DLUGOSCI (train mediana 77 nt wobec val 119 nt) i oddaje 85% walidacji jednej rodzinie.

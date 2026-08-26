@@ -12,7 +12,7 @@ wyjscie   GCGCGCAAAAGCGCGC
 
 ## Architektura — enkoder-only, nieautoregresyjna
 
-[`src/model.py`](src/model.py). Transformer **bez dekodera**, 5,07 mln parametrów: 6 warstw enkodera,
+[`src/model.py`](src/model.py). Transformer **bez dekodera**, 5,04 mln parametrów: 6 warstw enkodera,
 `d_model` 256, 8 głów uwagi, `dim_feedforward` 1024, dropout 0,1, normalizacja przed warstwą.
 
 ```
@@ -43,9 +43,12 @@ patrzą na dokładnie ten sam rozkład.
 
 ### Znika odchylenie ekspozycji
 
-Nie ma autoregresji, więc nie ma teacher forcingu: uczenie i generowanie to ten sam tryb. Dzięki temu
-człony energetyczne można wstawić wprost do funkcji straty. **Uczenie ze wzmocnieniem nie jest
-potrzebne** — było wyłącznie obejściem tego problemu.
+Nie ma autoregresji, więc nie ma teacher forcingu (ground-truth-guided decoding podczas treningu).
+Model podczas uczenia i podczas generowania dostaje dokładnie to samo wejście — pełną strukturę —
+więc człony energetyczne można wstawić wprost do funkcji straty i optymalizować gradientem.
+
+Zostaje jedna, znacznie mniejsza rozbieżność: trening liczy komponenty na **rozkładach softmax**,
+a generowanie wybiera **argmax**. Wracamy do tego niżej.
 
 ### Ograniczenie: holistycznie, ale tylko raz
 
@@ -53,10 +56,15 @@ Każda pozycja widzi wszystkie pozostałe, w obie strony — i to jest realna pr
 **jeden przebieg, jedna decyzja, koniec**. Model nie wraca do wcześniejszych wyborów i ich nie
 rewiduje; „holistycznie" znaczy tu „z pełnym kontekstem", a nie „iteracyjnie".
 
-Inaczej działają **modele dyfuzyjne**: generują w wielu krokach, zaczynając od szumu i stopniowo go
-odszumiając, więc każda iteracja może zmienić to, co ustalono wcześniej. Tam rewizja jest wbudowana
-w sposób generowania. U nas nie ma jej wcale i jest to widoczne w wynikach na strukturach powyżej
-100 nt.
+Konsekwencji spodziewamy się przede wszystkim na strukturach długich, gdzie jeden nietrafiony wybór
+nie ma jak zostać naprawiony.
+
+### Ograniczenie: softmax w treningu, argmax w generowaniu
+
+Komponenty energii, parowania i składu liczymy na **miękkich rozkładach** (softmax) podczas treningu.
+Podczas generowania wybieramy **argmax** — twardą decyzję. Jeśli rozkład jest rozmyty (high-entropy),
+oczekiwana energia może być niska, ale rzeczywista energia wygenerowanej sekwencji mogłaby być wyższa.
+To jest potencjalny problem dla komponentów o silnych preferencjach.
 
 ---
 
@@ -64,12 +72,18 @@ w sposób generowania. U nas nie ma jej wcale i jest to widoczne w wynikach na s
 
 ```
 strata = CE
-       + w_energia   * energia
-       + w_parowania * parowania
-       + w_sklad     * sklad
+       + w_energia      * energia
+       + w_parowania    * parowania
+       + KARA ZA SKLAD, jeden z dwoch wariantow:
+           w_sklad       * sklad           odleglosc TV      (E1)
+           w_sklad_zasad * sklad_zasad  \  progi dolne       (E2)
+           w_sklad_par   * sklad_par    /
 ```
 
 [`src/loss.py`](src/loss.py). Wagi zerowe domyślnie — czysta cross-entropia jest punktem odniesienia.
+
+Warianty kary za skład są **alternatywne**: włącza się jeden albo drugi. Na tym polega cała różnica
+między E1 a E2, opisana w [EKSPERYMENTY.md](EKSPERYMENTY.md).
 
 ### CE — cross-entropia
 
@@ -83,9 +97,9 @@ adeniny), bo widzi z kontekstu, w jakim motywie stoi.
 Oczekiwana energia struktury docelowej, liczona na rozkładach prawdopodobieństwa modelu. Trzy składniki:
 
 ```
-stosy par            tablica 6x6 klas, pelna orientacja pary
-kary terminalne AU   na końcu helisy w REGIONACH ZEWNETRZNYCH
-niedopasowanie spinki  odczyt z RNA.E_Hairpin
+stosy par              tablica 6x6 klas, pelna orientacja pary
+kary terminalne AU/GU  na ZEWNETRZNYM koncu helisy oraz przy tripetlach
+niedopasowanie spinki  odczyt z RNA.E_Hairpin, dla petli od 4 niesparowanych wzwyz
 ```
 
 Człony zależne wyłącznie od **kształtu** struktury (kara za wielkość pętli) są pomijane celowo —
@@ -113,28 +127,46 @@ chcemy**. Dzielimy przez kwadrat długości, bo iloczyn liczebności rośnie kwa
 **Ograniczenie:** wzór jest ślepy na pozycje. Traktuje guaninę z pozycji 3 jako mogącą sparować
 z cytozyną z pozycji 90, choć dzieli je 87 nukleotydów.
 
-### Skład — odległość od naturalnego
+### Skład — dwa warianty, które porównuje E1 kontra E2
 
-Odległość całkowitego wahania (`TV = ½·L1`, zakres 0–1) między rozkładem produkowanym przez model
-a naturalnym, liczona **osobno** dla dwóch grup:
+Po co ten człon: energia i parowania obie premiują mocne, jednoznaczne helisy, a człon parowań ma
+**trywialne minimum** — wypełnienie pętli adeniną zeruje `G·C`, `A·U` i `G·U` naraz, bo z pętli
+znikają C, U i G. Kara za skład jest jedyną przeciwwagą.
+
+Obie wersje liczą się **per sekwencja**, potem uśredniamy po partii. Różnią się kształtem.
+
+**Wariant E1 — odległość całkowitego wahania** (`TV = ½·L1`, zakres 0–1) od składu naturalnego,
+osobno dla dwóch grup:
 
 ```
-TYPY PAR              cel  G:C 0,555   A:U 0,321   G:U 0,125
-ZASADY W PETLACH      cel  A 0,330  C 0,198  G 0,213  U 0,259
+TYPY PAR              cel  G:C 0,599   A:U 0,276   G:U 0,124
+ZASADY W PETLACH      cel  A 0,324  C 0,208  G 0,217  U 0,252
 ```
 
-Cel pochodzi ze stałych w `src/loss.py`, zmierzonych na naturalnych sekwencjach RNA. To samo źródło,
-z którego losuje baseline — dzięki temu obie strony porównania mówią o tym samym rozkładzie.
+Kara **dwustronna**: nadmiar boli tak samo jak niedobór. Cel pochodzi ze stałych w `src/loss.py` —
+tego samego źródła, z którego losuje baseline.
 
-**Znane ograniczenie tego członu.** Kara liczy się na **miękkich rozkładach prawdopodobieństwa
-uśrednionych po partii**, a sekwencja powstaje przez `argmax`. Model może mieć rozkład, który średnio
-wygląda naturalnie, i przy tym na każdej pozycji wskazywać G-C — kara jest wtedy spełniona, a wyjście
-zdegenerowane. We wcześniejszej fazie pracy zmierzono to wprost: przy silnej wadze kara w treningu spadała
-pięciokrotnie, a odległość składu w wygenerowanych sekwencjach **rosła** dwukrotnie. Do przeliczenia
-na nowych danych — patrz [EKSPERYMENTY.md](EKSPERYMENTY.md).
+**Wariant E2 — progi dolne** ze specyfikacji promotora:
 
-**Wszystkie trzy pętle: również ograniczenie.** Spinka, wybrzuszenie i multipętla dzielą jeden cel,
-mimo że w naturze różnią się składem.
+```
+ZASADY W CALEJ SEKWENCJI   progi  A 0,15  C 0,30  G 0,30  U 0,15
+TYPY PAR                   progi  G:C 0,50  A:U 0,20  G:U 0,05  + eskalacja DistribLoss4
+```
+
+Kara **jednostronna**: `max(prog − udzial, 0) / prog`, więc nadmiar jest bezkarny. To są więzy
+projektowe w konwencji DesiRNA, a nie opis natury.
+
+**Różnica, o której łatwo zapomnieć:** wariant E1 patrzy na zasady **w pętlach**, a wariant E2
+na zasady **w całej sekwencji**, razem ze sparowanymi. E2 nie potrafi więc powiedzieć „za mało
+adeniny w pętlach", tylko „za mało adeniny w ogóle".
+
+**Ograniczenie wspólne dla obu.** Kara liczy się na miękkich rozkładach, a sekwencja powstaje przez
+`argmax`. Model może mieć rozkład wyglądający naturalnie i przy tym na każdej pozycji wskazywać G-C.
+
+**Ograniczenie wspólne dla obu, drugie.** Wszystkie typy pętli dzielą jeden cel: spinka, wybrzuszenie,
+multipętla i regiony zewnętrzne, mimo że w naturze różnią się składem. Rozdzielenie ich per sekwencja
+jest niewykonalne — mediana liczby pozycji w wybrzuszeniu i multipętli to sześć, a jedna trzecia
+sekwencji nie ma ich wcale.
 
 ---
 
@@ -154,53 +186,64 @@ Jedna epoka trwa około 7 sekund na RTX 4060, więc pełny trening to kilka minu
 
 ### Wybór najlepszej epoki — miejsce, w którym łatwo się pomylić
 
-Domyślnie zapisujemy epokę o najlepszym **odzysku** (ułamek pozycji trafionych wobec prawdziwej
-sekwencji), bo ta miara nie wymaga zwijania.
-
-**To jest pułapka.** Odzysk mierzy podobieństwo do sekwencji naturalnej, a rozwiązywanie premiuje
-mocne, jednoznaczne helisy — te cele są ze sobą sprzeczne, więc wybieranie epoki po odzysku
-systematycznie zapisuje ten wariant modelu, który rozwiązuje najgorzej.
-
-We wcześniejszej fazie pracy, na innym zbiorze, zmierzona korelacja Pearsona wynosiła **−0,79**.
-Tutaj jest do przeliczenia na nowych danych, ale sam mechanizm wynika z konstrukcji miar, nie
-z konkretnego zbioru.
+Po każdej epoce liczymy kryterium na **pełnym zbiorze walidacyjnym** i zapisujemy checkpoint tylko
+wtedy, gdy się poprawiło. Żadne z czterech kryteriów nie przewiduje struktury.
 
 ```
---wybor odzysk    domyslne, bez zwijania, ale sprzeczne z rozwiazywaniem
---wybor solved    najlepiej przewiduje rozwiazywanie, ale UZYWA RNAfolda do wyboru epoki
---wybor energia   ZERO zwijania, rozsadny kompromis
+--wybor identycznosc_nt   domyslne; ulamek pozycji trafionych wobec prawdziwej sekwencji
+--wybor ce                srednia cross-entropia na walidacji
+--wybor loss              PELNA strata tego modelu, z jego wlasnymi karami
+--wybor energia           o ile stabilizujemy cel lepiej niz prawdziwa sekwencja
 ```
+
+**Kryterium musi być takie samo w E1 i E2**, inaczej porównanie kar traci sens.
+
+**Dlaczego `loss` nie jest domyślne**, mimo że jest standardem w uczeniu maszynowym: nasza strata
+zawiera człon parowań z trywialnym minimum. Wybieranie epoki o najniższej stracie może więc
+systematycznie wskazywać epokę najbardziej zdegenerowaną — czyli dokładnie tę awarię, którą
+eksperyment ma zmierzyć. Do tego `loss` znaczy co innego w E1 i w E2, bo obejmuje inną karę.
+
+`identycznosc_nt` i `ce` są zewnętrzne wobec obu kar i identyczne dla obu eksperymentów. Różnią się
+tym, że pierwsza liczy się na `argmax`, a druga na rozkładach, więc widzi też pewność modelu.
+`energia` premiuje mocne helisy, a nie podobieństwo do biologii — te cele ciągną w różne strony.
 
 ---
 
 ## Ocena
 
-[`src/evaluate.py`](src/evaluate.py). Dwa zbiory i trzy miary.
+[`src/evaluate.py`](src/evaluate.py). Dwa zbiory, pięć miar, **żadna nie przewiduje struktury**.
 
 ```
-TEST NATURALNY    20% puli, rodziny nieobecne w treningu. Ocena glowna.
-ETERNA <= 50 nt   zagadki projektowe ludzi. Pomocnicza, spoza naszych danych.
+TEST NATURALNY     20% puli, rodziny nieobecne w treningu. Ocena glowna.
+ETERNA <= 200 nt   39 zagadek projektowych ludzi. Pomocnicza, spoza naszych danych.
 ```
 
-| miara | co znaczy | używa RNAfolda |
+| miara | co znaczy | rola |
 |---|---|---|
-| `rozwiazane` | czy nasza sekwencja **zwija się** w zadaną strukturę | tak |
-| `odzysk` | ułamek pozycji trafionych wobec prawdziwej sekwencji | nie |
-| `dE/nt` | o ile stabilizujemy cel lepiej niż prawdziwa sekwencja | nie |
+| `identycznosc_nt` | ułamek **pozycji** z tą samą zasadą co wzorzec | rozstrzyga |
+| `identycznosc_par` | ułamek **par** z trafionym TYPEM; `G-C` i `C-G` to jedno trafienie | rozstrzyga |
+| `dE/nt` | o ile stabilizujemy cel lepiej niż prawdziwa sekwencja | kontrola |
+| `perplexity` | z ilu zasad model średnio wybiera (1 = pewny, 4 = niezdecydowany) | kontrola |
+| `kara_wlasna` | wartość kary za skład tego modelu | diagnostyka |
 
-**`rozwiazane` nie porównuje sekwencji z odpowiedzią.** Sekwencja całkiem inna od wzorcowej może
-rozwiązać zagadkę, jeśli tylko zwija się poprawnie. To rozróżnienie jest kluczowe: sekwencja z samych
-par G:C zwija się bardzo niezawodnie, mając może 30% liter wspólnych ze wzorcem.
+**Dwie identyczności mają różne mianowniki.** Architektura wymusza parę wszędzie tam, gdzie struktura
+jej żąda, więc model nie może postawić pary w złym miejscu ani jej pominąć — rozliczanie go z
+rozmieszczenia par nie miałoby sensu. Da się ocenić tylko, **który typ** wybrał, a naturalną jednostką
+jest tam para, nie pozycja. Z definicji `identycznosc_par >= identycznosc_nt`, a różnica między nimi
+to błędy samej orientacji.
 
-`F1` celowo pomijamy — rozdaje punkty częściowe za pojedyncze pary, więc dziedziczy błąd RNAfolda
-na każdej z nich i jest trudne do odczytu.
+**`kara_wlasna` to inna wielkość w E1 i w E2** — tych liczb nie wolno zestawiać ze sobą.
+
+**Czego tu nie ma:** `rozwiazane` i `F1`. Obie wymagają przewidzenia struktury RNAfoldem, który ma
+własny sufit dokładności, więc poprawnie zaprojektowana sekwencja bywa uznawana za błędną z powodu
+ograniczeń narzędzia, a nie modelu. Konsekwencja, którą trzeba znać: nie odpowiadamy na pytanie
+„czy ta sekwencja się zwinie".
 
 ### Baseline
 
 Sekwencja losowana z naturalnych częstości, z zachowaniem komplementarności par
 (`src/dataset.py::losowa_kanoniczna`). Mierzy, ile da się ugrać **samą komplementarnością zasad**,
-bez żadnego uczenia. Bez tego punktu odniesienia nie da się powiedzieć, czy model czegokolwiek się
-nauczył.
+bez żadnego uczenia.
 
 ```
 python -m src.evaluate --baseline --na test

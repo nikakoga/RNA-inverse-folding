@@ -1,12 +1,20 @@
 C:\Users\janle\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\transformer.py:385: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
   warnings.warn(
-checkpoints/e1_kary.pt
-zbior TEST: 739 struktur | Eterna <= 50 nt: 18
+checkpoints/e1_sklad_tv.pt
+zbior TEST: 728 struktur | Eterna <= 200 nt: 39
+wlasna kara za sklad: kara TV (nasza)
+perplexity na zbiorze test: 4.618   (1 = pewny, 4 = calkiem niezdecydowany)
 
-zbior          dlugosc     n  rozwiazane   odzysk    dE/nt
-test              0-50    14        8/14    0.277  -0.2362
-test            51-100   451     187/451    0.301  -0.2238
-test           101-200   274      33/274    0.307  -0.1689
-eterna<=50        0-50    18        8/18    0.541  -0.0366
+zbior         dlugosc     n  identycznosc_nt  identycznosc_par    dE/nt  kara_wlasna
+test         <= 50 nt    14            30.9%             60.2%  -0.2566       1.0602
+test        <= 100 nt   458            28.9%             47.2%  -0.3199       1.0464
+test        <= 200 nt   728            29.4%             48.2%  -0.3000       1.0393
+eterna       <= 50 nt    12            56.7%             73.6%  -0.1508       1.0770
+eterna      <= 100 nt    22            53.4%             73.8%  -0.1651       1.0702
+eterna      <= 200 nt    39            53.0%             75.2%  -0.1481       1.0337
+
+Kubelki NARASTAJACE: wiersz '<= 100 nt' obejmuje takze struktury krotsze niz 50 nt.
+Kary liczone na WYGENEROWANYCH sekwencjach, a w treningu na rozkladach prawdopodobienstwa
+— liczby nie zgadzaja sie z logiem treningu i to nie jest blad.
 
 zapisano: experiments/analysis/e1_test.csv

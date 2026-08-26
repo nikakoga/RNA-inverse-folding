@@ -19,28 +19,30 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 CK = {
-    "e1": "checkpoints/e1_kary.pt",
-    "e2_w0": "checkpoints/e2_sklad0.pt",
-    "e2_w40": "checkpoints/e2_sklad40.pt",
+    "e1": "checkpoints/e1_sklad_tv.pt",        # nasza kara za sklad (odleglosc TV)
+    "e2": "checkpoints/e2_sklad_progi.pt",     # kara za sklad wg specyfikacji promotora
 }
 SPLIT = ["--tryb-podzialu", "rodzinowy"]
+# Kryterium wyboru epoki JAWNIE, i TAKIE SAMO w obu eksperymentach: identycznosc sekwencyjna jako
+# klucz glowny, dE/nt jako rozstrzygacz remisow. Oba sa zewnetrzne wobec obu kar za sklad.
+WYBOR = ["--wybor", "zlozony"]
 
 EKSPERYMENTY: list[tuple[str, str, list]] = [
 
     ("dane", "Odsianie redundancji natywnym cd-hit-est, filtry i podzial rodzinowy", [
-        # cd-hit-est wymaga WSL. Sprawdzenie gotowosci: python -m src.cdhit --sprawdz
+        # cd-hit-est wymaga WSL (instalacja w README). Odsiewana jest WYLACZNIE pula naturalna —
+        # Eterny nie ma w treningu, wiec nie ma tam przecieku, ktoremu odsiewanie mialoby zapobiec.
         ("cdhit", ["-m", "src.cdhit"]),
         ("przygotowanie", ["-m", "src.prepare"]),
         ("podzial", ["-m", "src.split", "--tryb", "rodzinowy"]),
     ]),
 
-    ("E1", "Transformer nieautoregresyjny z trzema komponentami w stracie (energia 1,0 : parowania 6,0 "
-           ": sklad 1,7), podzial rodzinowy. Punkt wyjscia — te wagi nie byly strojone", [
-        # Podzial rodzinowy: kazda rodzina Rfam w DOKLADNIE jednym zbiorze, wiec test to rodziny,
-        # ktorych model nie widzial ani razu. Bez tego ta sama rodzina bywa i w treningu, i w tescie,
-        # a model odtwarza zapamietany wzorzec zamiast generalizowac (odzysk 0,49 wobec 0,31).
-        ("trening", ["-m", "src.train", "--epoki", "60", *SPLIT,
-                     "--w-energia", "1.0", "--w-parowania", "6.0", "--w-sklad", "1.7",
+    ("E1", "Kara za sklad: NASZA (odleglosc TV od celu naturalnego), per sekwencja, waga 1,0", [
+        # WAGA 1,0 — taka sama jak w E2. Specyfikacja promotora wnosi swoja kare wprost
+        # (`loss = loss + DistribLoss`), wiec dajac nasza rowniez z waga 1,0 nie wprowadzamy zadnej
+        # dobranej stalej. Jedyna roznica miedzy E1 i E2 zostaje wtedy KSZTALT kary.
+        ("trening", ["-m", "src.train", "--epoki", "60", *SPLIT, *WYBOR,
+                     "--w-energia", "1.0", "--w-parowania", "6.0", "--w-sklad", "1.0",
                      "--out", CK["e1"]]),
         ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["e1"], *SPLIT,
                         "--na", "test", "--csv", "e1_test.csv"]),
@@ -48,21 +50,21 @@ EKSPERYMENTY: list[tuple[str, str, list]] = [
                       "--na", "test", "--csv", "baseline_test.csv"]),
     ]),
 
-    ("E2", "Strojenie wagi kary za sklad. Sweep na WALIDACJI, ocena wybranych wag na tescie", [
-        # STROIMY NA WALIDACJI. Zbior testowy wolno obejrzec RAZ, na koncu; strojenie to wielokrotne
-        # zagladanie. Dopiero wybrane konfiguracje ida na test — i to jest jedyna liczba do raportu.
-        ("sweep_w0", ["-m", "src.train", "--epoki", "60", *SPLIT,
-                      "--w-energia", "1.0", "--w-parowania", "6.0", "--w-sklad", "0",
-                      "--out", CK["e2_w0"]]),
-        ("sweep_w40", ["-m", "src.train", "--epoki", "60", *SPLIT,
-                       "--w-energia", "1.0", "--w-parowania", "6.0", "--w-sklad", "40",
-                       "--out", CK["e2_w40"]]),
-        ("val_w0", ["-m", "src.evaluate", "--ckpt", CK["e2_w0"], *SPLIT, "--na", "val"]),
-        ("val_w40", ["-m", "src.evaluate", "--ckpt", CK["e2_w40"], *SPLIT, "--na", "val"]),
-        ("ocena_test_w0", ["-m", "src.evaluate", "--ckpt", CK["e2_w0"], *SPLIT,
-                           "--na", "test", "--csv", "e2_w0_test.csv"]),
-        ("ocena_test_w40", ["-m", "src.evaluate", "--ckpt", CK["e2_w40"], *SPLIT,
-                            "--na", "test", "--csv", "e2_w40_test.csv"]),
+    ("E2", "Kara za sklad: wg specyfikacji promotora (progi dolne, per sekwencja). "
+           "Jedyna roznica wobec E1 to KONSTRUKCJA tej kary", [
+        #   E1  --w-sklad 1          odleglosc TV od celu; DWUSTRONNA — karze takze nadmiar
+        #   E2  --w-sklad-zasad 1    progi DOLNE udzialow A/C/G/U
+        #       --w-sklad-par   1    progi DOLNE udzialow typow par + eskalacja DistribLoss4
+        #                            JEDNOSTRONNA — nadmiar bezkarny
+        #
+        # Obie liczone PER SEKWENCJA i obie z waga 1,0, wiec jedyna zmienna jest ksztalt kary.
+        # Energia i parowania identyczne jak w E1.
+        ("trening", ["-m", "src.train", "--epoki", "60", *SPLIT, *WYBOR,
+                     "--w-energia", "1.0", "--w-parowania", "6.0",
+                     "--w-sklad-zasad", "1.0", "--w-sklad-par", "1.0",
+                     "--out", CK["e2"]]),
+        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["e2"], *SPLIT,
+                        "--na", "test", "--csv", "e2_test.csv"]),
     ]),
 ]
 
