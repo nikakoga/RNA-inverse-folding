@@ -1,17 +1,29 @@
 baseline losowy kanoniczny
 zbior TEST: 728 struktur | Eterna <= 200 nt: 39
+dekodowanie: argmax
 wlasna kara za sklad: brak kary za sklad
 
-zbior         dlugosc     n  identycznosc_nt  identycznosc_par    dE/nt
-test         <= 50 nt    14            23.4%             49.4%   0.0465
-test        <= 100 nt   458            26.2%             41.6%  -0.0616
-test        <= 200 nt   728            26.3%             41.5%  -0.0531
-eterna       <= 50 nt    12            33.3%             52.4%   0.1259
-eterna      <= 100 nt    22            34.0%             53.1%   0.1402
-eterna      <= 200 nt    39            32.9%             53.4%   0.1394
+zbior         dlugosc     n  ident_nt  ident_par  zbal_par  zbal_zas    dE/nt
+test         <= 50 nt    14     24.1%      35.0%     35.2%     21.5%   0.2187
+test        <= 100 nt   458     26.0%      33.6%     33.2%     25.2%   0.1214
+test        <= 200 nt   728     25.9%      33.7%     33.5%     25.0%   0.1273
+eterna       <= 50 nt    12     25.2%      35.5%     34.5%     15.2%   0.3958
+eterna      <= 100 nt    22     27.4%      37.0%     39.3%     20.5%   0.3826
+eterna      <= 200 nt    39     26.4%      35.8%     35.2%     25.4%   0.3567
+
+CZULOSC OSOBNO DLA KAZDEJ KLASY (kubelek <= 200 nt)
+  zbior         par GC    par AU    par GU       petle A    petle C    petle G    petle U
+  test           34.2%     33.3%     32.9%         25.3%      24.2%      25.7%      24.9%
+  eterna         34.5%     37.2%     33.9%         24.6%      29.4%      19.2%      28.6%
+  poziom losowy     33.3%     33.3%     33.3%         25.0%      25.0%      25.0%      25.0%
+
+SPECYFICZNOSC OSOBNO DLA KAZDEJ KLASY (kubelek <= 200 nt)
+  zbior         par GC    par AU    par GU       petle A    petle C    petle G    petle U
+  test           66.9%     66.5%     67.0%         74.8%      75.3%      75.1%      74.8%
+  eterna         74.8%     66.4%     66.6%         74.2%      73.3%      75.7%      75.2%
 
 Kubelki NARASTAJACE: wiersz '<= 100 nt' obejmuje takze struktury krotsze niz 50 nt.
-Kary liczone na WYGENEROWANYCH sekwencjach, a w treningu na rozkladach prawdopodobienstwa
-— liczby nie zgadzaja sie z logiem treningu i to nie jest blad.
+zbal_par / zbal_zas to srednie czulosci BEZ WAGI. Predyktor staly (np. zawsze G:C) spada
+tam do poziomu losowego, mimo ze na zwyklej identycznosci wypada lepiej niz baseline.
 
 zapisano: experiments/analysis/baseline_test.csv

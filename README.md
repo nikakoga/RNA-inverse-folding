@@ -7,10 +7,21 @@ zawiera dane, kod, eksperymenty i dokumentację, nie odwołuje się do niczego n
 python run.py dane              # cd-hit-est + filtry + podzial rodzinowy
 python run.py E1                # kara za sklad: odleglosc TV (dwustronna), waga 1,0
 python run.py E2                # kara za sklad: progi dolne (jednostronna), waga 1,0
+python run.py CE                # BEZ kary za sklad — ablacja
+python run.py E1W / E2W / CEW   # to samo, ale cross-entropia WAZONA odwrotnie do czestosci klas
 ```
 
-E1 i E2 różnią się **wyłącznie** konstrukcją kary za skład — szczegóły w
-[EKSPERYMENTY.md](EKSPERYMENTY.md).
+Sześć przebiegów w dwóch wymiarach — konstrukcja kary za skład i ważenie cross-entropii:
+
+```
+             kara TV     kara progowa    brak kary
+CE zwykla       E1            E2            CE
+CE wazona       E1W           E2W           CEW
+```
+
+W obrębie każdego przebiegu wszystko poza tymi dwiema decyzjami jest identyczne: dane, podział,
+architektura, wagi 1,0, próbkowanie z ziarnem 0, 60 epok, epoka wybrana po `zbal_par` na walidacji.
+Szczegóły i wyniki w [EKSPERYMENTY.md](EKSPERYMENTY.md).
 
 ## Co gdzie jest
 

@@ -2,31 +2,70 @@ C:\Users\janle\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\n
   warnings.warn(
 urzadzenie cuda | struktur 3640 | podzial rodzinowy
 train 2185  val 727  test 728
-wagi kar: energia 1.0  parowania 6.0
+wagi kar: energia 1.0  parowania 1.0
   sklad TV (nasz):        waga 1.0  cel petle {'A': 0.324, 'C': 0.208, 'G': 0.217, 'U': 0.252}  cel pary {'GC': 0.599, 'AU': 0.276, 'GU': 0.124}
-wybor epoki: zlozony
+wybor epoki: zbal_par
 parametry: 5.04 mln
 energie referencyjne walidacji: 727 struktur, 0.0s
-[1/60] CE 2.8663 | energia -0.2357 parowania 0.1886 sklad 0.0826 | val ident 0.2972 CE 1.5697 loss 4.2111 dE/nt -0.2495 zlozony 30249 | 6s  *najlepszy -> zapis
-[2/60] CE 2.6493 | energia -0.2412 parowania 0.1874 sklad 0.0823 | val ident 0.2894 CE 1.6005 loss 4.2607 dE/nt -0.2378 zlozony 29238 | 6s  (bez poprawy 1/10)
-[3/60] CE 2.5415 | energia -0.2430 parowania 0.1875 sklad 0.0766 | val ident 0.3013 CE 1.5354 loss 4.1036 dE/nt -0.2683 zlozony 30268 | 6s  *najlepszy -> zapis
-[4/60] CE 2.4602 | energia -0.2466 parowania 0.1879 sklad 0.0727 | val ident 0.3018 CE 1.5115 loss 4.0676 dE/nt -0.2740 zlozony 30274 | 6s  *najlepszy -> zapis
-[5/60] CE 2.3874 | energia -0.2482 parowania 0.1881 sklad 0.0724 | val ident 0.3019 CE 1.5088 loss 4.0460 dE/nt -0.2753 zlozony 30275 | 6s  *najlepszy -> zapis
-[6/60] CE 2.3302 | energia -0.2484 parowania 0.1880 sklad 0.0727 | val ident 0.3049 CE 1.4984 loss 4.0257 dE/nt -0.2765 zlozony 30277 | 6s  *najlepszy -> zapis
-[7/60] CE 2.2816 | energia -0.2493 parowania 0.1878 sklad 0.0750 | val ident 0.3070 CE 1.4949 loss 4.0175 dE/nt -0.2784 zlozony 31278 | 6s  *najlepszy -> zapis
-[8/60] CE 2.2307 | energia -0.2499 parowania 0.1881 sklad 0.0719 | val ident 0.3098 CE 1.4961 loss 4.0159 dE/nt -0.2740 zlozony 31274 | 6s  (bez poprawy 1/10)
-[9/60] CE 2.1955 | energia -0.2504 parowania 0.1880 sklad 0.0739 | val ident 0.3109 CE 1.4874 loss 3.9994 dE/nt -0.2758 zlozony 31276 | 6s  (bez poprawy 2/10)
-[10/60] CE 2.1611 | energia -0.2505 parowania 0.1878 sklad 0.0763 | val ident 0.3126 CE 1.4975 loss 4.0263 dE/nt -0.2910 zlozony 31291 | 6s  *najlepszy -> zapis
-[11/60] CE 2.1268 | energia -0.2512 parowania 0.1880 sklad 0.0729 | val ident 0.3100 CE 1.5088 loss 4.0532 dE/nt -0.2711 zlozony 31271 | 6s  (bez poprawy 1/10)
-[12/60] CE 2.1009 | energia -0.2513 parowania 0.1881 sklad 0.0726 | val ident 0.3124 CE 1.5007 loss 4.0385 dE/nt -0.2752 zlozony 31275 | 6s  (bez poprawy 2/10)
-[13/60] CE 2.0751 | energia -0.2512 parowania 0.1882 sklad 0.0704 | val ident 0.3131 CE 1.4948 loss 4.0169 dE/nt -0.2693 zlozony 31269 | 6s  (bez poprawy 3/10)
-[14/60] CE 2.0521 | energia -0.2516 parowania 0.1881 sklad 0.0714 | val ident 0.3113 CE 1.4937 loss 4.0164 dE/nt -0.2700 zlozony 31270 | 6s  (bez poprawy 4/10)
-[15/60] CE 2.0393 | energia -0.2526 parowania 0.1880 sklad 0.0736 | val ident 0.3133 CE 1.4991 loss 4.0373 dE/nt -0.2642 zlozony 31264 | 6s  (bez poprawy 5/10)
-[16/60] CE 2.0156 | energia -0.2526 parowania 0.1881 sklad 0.0730 | val ident 0.3121 CE 1.5180 loss 4.0737 dE/nt -0.2640 zlozony 31264 | 6s  (bez poprawy 6/10)
-[17/60] CE 1.9982 | energia -0.2530 parowania 0.1881 sklad 0.0729 | val ident 0.3113 CE 1.5072 loss 4.0462 dE/nt -0.2672 zlozony 31267 | 6s  (bez poprawy 7/10)
-[18/60] CE 1.9839 | energia -0.2529 parowania 0.1882 sklad 0.0717 | val ident 0.3109 CE 1.5081 loss 4.0556 dE/nt -0.2586 zlozony 31259 | 6s  (bez poprawy 8/10)
-[19/60] CE 1.9697 | energia -0.2534 parowania 0.1880 sklad 0.0737 | val ident 0.3121 CE 1.5269 loss 4.1013 dE/nt -0.2500 zlozony 31250 | 6s  (bez poprawy 9/10)
-[20/60] CE 1.9543 | energia -0.2533 parowania 0.1882 sklad 0.0715 | val ident 0.3144 CE 1.5134 loss 4.0819 dE/nt -0.2375 zlozony 31237 | 6s  (bez poprawy 10/10)
-early stopping
+[1/60] CE 1.4170 | energia -0.2277 parowania 0.1917 sklad 0.0574 | val ident 0.2649 zbal_par 0.3385 zbal_zas 0.2465 specGC 0.3797 jGC +0.0126 j_par +0.0088 j_zas -0.0045 CE 1.5649 loss 3.2355 dE/nt -0.0697 zlozony 26070 | 6s  *najlepszy -> zapis
+[2/60] CE 1.3260 | energia -0.2351 parowania 0.1910 sklad 0.0621 | val ident 0.2679 zbal_par 0.3371 zbal_zas 0.2510 specGC 0.3827 jGC +0.0059 j_par +0.0055 j_zas +0.0016 CE 1.5927 loss 3.2969 dE/nt -0.0649 zlozony 27065 | 6s  (bez poprawy 1/60)
+[3/60] CE 1.2687 | energia -0.2357 parowania 0.1914 sklad 0.0535 | val ident 0.2708 zbal_par 0.3372 zbal_zas 0.2575 specGC 0.3848 jGC +0.0073 j_par +0.0062 j_zas +0.0105 CE 1.5861 loss 3.2438 dE/nt -0.0641 zlozony 27064 | 6s  (bez poprawy 2/60)
+[4/60] CE 1.2247 | energia -0.2376 parowania 0.1915 sklad 0.0508 | val ident 0.2725 zbal_par 0.3371 zbal_zas 0.2616 specGC 0.3996 jGC +0.0056 j_par +0.0063 j_zas +0.0158 CE 1.5108 loss 3.1122 dE/nt -0.0544 zlozony 27054 | 6s  (bez poprawy 3/60)
+[5/60] CE 1.1855 | energia -0.2397 parowania 0.1916 sklad 0.0505 | val ident 0.2731 zbal_par 0.3362 zbal_zas 0.2638 specGC 0.4105 jGC +0.0060 j_par +0.0053 j_zas +0.0190 CE 1.4978 loss 3.0666 dE/nt -0.0489 zlozony 27049 | 6s  (bez poprawy 4/60)
+[6/60] CE 1.1515 | energia -0.2402 parowania 0.1917 sklad 0.0488 | val ident 0.2740 zbal_par 0.3360 zbal_zas 0.2654 specGC 0.3986 jGC +0.0056 j_par +0.0047 j_zas +0.0210 CE 1.4961 loss 3.0765 dE/nt -0.0575 zlozony 27058 | 6s  (bez poprawy 5/60)
+[7/60] CE 1.1227 | energia -0.2412 parowania 0.1916 sklad 0.0522 | val ident 0.2746 zbal_par 0.3357 zbal_zas 0.2667 specGC 0.3967 jGC +0.0021 j_par +0.0042 j_zas +0.0227 CE 1.4897 loss 3.0404 dE/nt -0.0560 zlozony 27056 | 6s  (bez poprawy 6/60)
+[8/60] CE 1.0961 | energia -0.2418 parowania 0.1915 sklad 0.0504 | val ident 0.2768 zbal_par 0.3367 zbal_zas 0.2687 specGC 0.4033 jGC +0.0048 j_par +0.0058 j_zas +0.0253 CE 1.4965 loss 3.0672 dE/nt -0.0513 zlozony 28051 | 6s  (bez poprawy 7/60)
+[9/60] CE 1.0738 | energia -0.2421 parowania 0.1916 sklad 0.0517 | val ident 0.2761 zbal_par 0.3368 zbal_zas 0.2693 specGC 0.4114 jGC +0.0082 j_par +0.0060 j_zas +0.0261 CE 1.4861 loss 3.0481 dE/nt -0.0496 zlozony 28050 | 6s  (bez poprawy 8/60)
+[10/60] CE 1.0506 | energia -0.2433 parowania 0.1915 sklad 0.0512 | val ident 0.2760 zbal_par 0.3349 zbal_zas 0.2711 specGC 0.3874 jGC +0.0032 j_par +0.0028 j_zas +0.0286 CE 1.4901 loss 3.0440 dE/nt -0.0612 zlozony 28061 | 6s  (bez poprawy 9/60)
+[11/60] CE 1.0344 | energia -0.2432 parowania 0.1915 sklad 0.0507 | val ident 0.2790 zbal_par 0.3383 zbal_zas 0.2730 specGC 0.3804 jGC +0.0094 j_par +0.0082 j_zas +0.0312 CE 1.5076 loss 3.0912 dE/nt -0.0689 zlozony 28069 | 6s  (bez poprawy 10/60)
+[12/60] CE 1.0187 | energia -0.2433 parowania 0.1916 sklad 0.0502 | val ident 0.2776 zbal_par 0.3372 zbal_zas 0.2729 specGC 0.4041 jGC +0.0069 j_par +0.0063 j_zas +0.0309 CE 1.4912 loss 3.0518 dE/nt -0.0541 zlozony 28054 | 6s  (bez poprawy 11/60)
+[13/60] CE 1.0061 | energia -0.2440 parowania 0.1915 sklad 0.0510 | val ident 0.2781 zbal_par 0.3382 zbal_zas 0.2715 specGC 0.3960 jGC +0.0098 j_par +0.0081 j_zas +0.0290 CE 1.4900 loss 3.0404 dE/nt -0.0578 zlozony 28058 | 6s  (bez poprawy 12/60)
+[14/60] CE 0.9953 | energia -0.2440 parowania 0.1915 sklad 0.0505 | val ident 0.2785 zbal_par 0.3373 zbal_zas 0.2725 specGC 0.3901 jGC +0.0089 j_par +0.0067 j_zas +0.0305 CE 1.5016 loss 3.0694 dE/nt -0.0620 zlozony 28062 | 6s  (bez poprawy 13/60)
+[15/60] CE 0.9828 | energia -0.2453 parowania 0.1915 sklad 0.0508 | val ident 0.2789 zbal_par 0.3385 zbal_zas 0.2734 specGC 0.3923 jGC +0.0086 j_par +0.0080 j_zas +0.0317 CE 1.4992 loss 3.0714 dE/nt -0.0622 zlozony 28062 | 6s  *najlepszy -> zapis
+[16/60] CE 0.9731 | energia -0.2449 parowania 0.1915 sklad 0.0498 | val ident 0.2797 zbal_par 0.3382 zbal_zas 0.2739 specGC 0.3853 jGC +0.0088 j_par +0.0074 j_zas +0.0324 CE 1.5071 loss 3.0882 dE/nt -0.0643 zlozony 28064 | 6s  (bez poprawy 1/60)
+[17/60] CE 0.9652 | energia -0.2451 parowania 0.1915 sklad 0.0512 | val ident 0.2798 zbal_par 0.3373 zbal_zas 0.2739 specGC 0.3911 jGC +0.0125 j_par +0.0072 j_zas +0.0322 CE 1.5004 loss 3.0689 dE/nt -0.0639 zlozony 28064 | 6s  (bez poprawy 2/60)
+[18/60] CE 0.9579 | energia -0.2453 parowania 0.1915 sklad 0.0499 | val ident 0.2791 zbal_par 0.3388 zbal_zas 0.2734 specGC 0.4079 jGC +0.0100 j_par +0.0084 j_zas +0.0317 CE 1.5024 loss 3.0879 dE/nt -0.0537 zlozony 28054 | 6s  *najlepszy -> zapis
+[19/60] CE 0.9520 | energia -0.2454 parowania 0.1915 sklad 0.0508 | val ident 0.2803 zbal_par 0.3387 zbal_zas 0.2727 specGC 0.4117 jGC +0.0144 j_par +0.0091 j_zas +0.0307 CE 1.5161 loss 3.1199 dE/nt -0.0517 zlozony 28052 | 6s  (bez poprawy 1/60)
+[20/60] CE 0.9435 | energia -0.2456 parowania 0.1915 sklad 0.0500 | val ident 0.2805 zbal_par 0.3384 zbal_zas 0.2747 specGC 0.4002 jGC +0.0128 j_par +0.0082 j_zas +0.0334 CE 1.5182 loss 3.1233 dE/nt -0.0601 zlozony 28060 | 6s  (bez poprawy 2/60)
+[21/60] CE 0.9380 | energia -0.2447 parowania 0.1914 sklad 0.0498 | val ident 0.2821 zbal_par 0.3399 zbal_zas 0.2757 specGC 0.4156 jGC +0.0157 j_par +0.0108 j_zas +0.0348 CE 1.5203 loss 3.1310 dE/nt -0.0516 zlozony 28052 | 6s  *najlepszy -> zapis
+[22/60] CE 0.9313 | energia -0.2451 parowania 0.1915 sklad 0.0496 | val ident 0.2808 zbal_par 0.3384 zbal_zas 0.2743 specGC 0.3933 jGC +0.0124 j_par +0.0082 j_zas +0.0329 CE 1.5278 loss 3.1396 dE/nt -0.0640 zlozony 28064 | 6s  (bez poprawy 1/60)
+[23/60] CE 0.9247 | energia -0.2461 parowania 0.1915 sklad 0.0491 | val ident 0.2819 zbal_par 0.3383 zbal_zas 0.2753 specGC 0.4083 jGC +0.0101 j_par +0.0075 j_zas +0.0342 CE 1.5303 loss 3.1631 dE/nt -0.0543 zlozony 28054 | 6s  (bez poprawy 2/60)
+[24/60] CE 0.9206 | energia -0.2455 parowania 0.1916 sklad 0.0489 | val ident 0.2827 zbal_par 0.3398 zbal_zas 0.2751 specGC 0.3885 jGC +0.0139 j_par +0.0104 j_zas +0.0340 CE 1.5397 loss 3.1714 dE/nt -0.0662 zlozony 28066 | 6s  (bez poprawy 3/60)
+[25/60] CE 0.9146 | energia -0.2466 parowania 0.1914 sklad 0.0504 | val ident 0.2819 zbal_par 0.3409 zbal_zas 0.2746 specGC 0.3888 jGC +0.0181 j_par +0.0120 j_zas +0.0332 CE 1.5367 loss 3.1680 dE/nt -0.0689 zlozony 28069 | 6s  *najlepszy -> zapis
+[26/60] CE 0.9097 | energia -0.2468 parowania 0.1914 sklad 0.0515 | val ident 0.2816 zbal_par 0.3398 zbal_zas 0.2747 specGC 0.4094 jGC +0.0151 j_par +0.0106 j_zas +0.0333 CE 1.5397 loss 3.1843 dE/nt -0.0562 zlozony 28056 | 6s  (bez poprawy 1/60)
+[27/60] CE 0.9043 | energia -0.2462 parowania 0.1914 sklad 0.0498 | val ident 0.2823 zbal_par 0.3391 zbal_zas 0.2753 specGC 0.3837 jGC +0.0132 j_par +0.0088 j_zas +0.0343 CE 1.5707 loss 3.2465 dE/nt -0.0709 zlozony 28071 | 6s  (bez poprawy 2/60)
+[28/60] CE 0.8995 | energia -0.2465 parowania 0.1914 sklad 0.0499 | val ident 0.2831 zbal_par 0.3411 zbal_zas 0.2768 specGC 0.4048 jGC +0.0140 j_par +0.0115 j_zas +0.0363 CE 1.5635 loss 3.2375 dE/nt -0.0581 zlozony 28058 | 6s  *najlepszy -> zapis
+[29/60] CE 0.8954 | energia -0.2467 parowania 0.1915 sklad 0.0503 | val ident 0.2833 zbal_par 0.3403 zbal_zas 0.2757 specGC 0.4032 jGC +0.0145 j_par +0.0110 j_zas +0.0349 CE 1.5633 loss 3.2390 dE/nt -0.0581 zlozony 28058 | 6s  (bez poprawy 1/60)
+[30/60] CE 0.8911 | energia -0.2470 parowania 0.1914 sklad 0.0512 | val ident 0.2835 zbal_par 0.3432 zbal_zas 0.2758 specGC 0.3967 jGC +0.0190 j_par +0.0153 j_zas +0.0349 CE 1.5756 loss 3.2671 dE/nt -0.0641 zlozony 28064 | 6s  *najlepszy -> zapis
+[31/60] CE 0.8851 | energia -0.2463 parowania 0.1915 sklad 0.0511 | val ident 0.2845 zbal_par 0.3415 zbal_zas 0.2760 specGC 0.3809 jGC +0.0197 j_par +0.0133 j_zas +0.0352 CE 1.5890 loss 3.2974 dE/nt -0.0728 zlozony 28073 | 6s  (bez poprawy 1/60)
+[32/60] CE 0.8814 | energia -0.2474 parowania 0.1914 sklad 0.0520 | val ident 0.2831 zbal_par 0.3414 zbal_zas 0.2758 specGC 0.4088 jGC +0.0205 j_par +0.0133 j_zas +0.0350 CE 1.5951 loss 3.3220 dE/nt -0.0598 zlozony 28060 | 6s  (bez poprawy 2/60)
+[33/60] CE 0.8772 | energia -0.2471 parowania 0.1914 sklad 0.0514 | val ident 0.2823 zbal_par 0.3418 zbal_zas 0.2760 specGC 0.4159 jGC +0.0165 j_par +0.0129 j_zas +0.0352 CE 1.6028 loss 3.3519 dE/nt -0.0526 zlozony 28053 | 6s  (bez poprawy 3/60)
+[34/60] CE 0.8732 | energia -0.2470 parowania 0.1914 sklad 0.0517 | val ident 0.2843 zbal_par 0.3423 zbal_zas 0.2766 specGC 0.4099 jGC +0.0230 j_par +0.0146 j_zas +0.0360 CE 1.6043 loss 3.3444 dE/nt -0.0577 zlozony 28058 | 6s  (bez poprawy 4/60)
+[35/60] CE 0.8704 | energia -0.2473 parowania 0.1914 sklad 0.0523 | val ident 0.2849 zbal_par 0.3411 zbal_zas 0.2761 specGC 0.4137 jGC +0.0184 j_par +0.0126 j_zas +0.0354 CE 1.6096 loss 3.3644 dE/nt -0.0553 zlozony 28055 | 6s  (bez poprawy 5/60)
+[36/60] CE 0.8656 | energia -0.2468 parowania 0.1914 sklad 0.0510 | val ident 0.2840 zbal_par 0.3408 zbal_zas 0.2762 specGC 0.4011 jGC +0.0158 j_par +0.0118 j_zas +0.0355 CE 1.6232 loss 3.3900 dE/nt -0.0626 zlozony 28063 | 6s  (bez poprawy 6/60)
+[37/60] CE 0.8622 | energia -0.2470 parowania 0.1914 sklad 0.0517 | val ident 0.2848 zbal_par 0.3412 zbal_zas 0.2766 specGC 0.4005 jGC +0.0125 j_par +0.0117 j_zas +0.0361 CE 1.6352 loss 3.4254 dE/nt -0.0599 zlozony 28060 | 6s  (bez poprawy 7/60)
+[38/60] CE 0.8593 | energia -0.2473 parowania 0.1914 sklad 0.0523 | val ident 0.2834 zbal_par 0.3397 zbal_zas 0.2770 specGC 0.4080 jGC +0.0161 j_par +0.0102 j_zas +0.0365 CE 1.6333 loss 3.4240 dE/nt -0.0579 zlozony 28058 | 7s  (bez poprawy 8/60)
+[39/60] CE 0.8538 | energia -0.2475 parowania 0.1914 sklad 0.0520 | val ident 0.2847 zbal_par 0.3428 zbal_zas 0.2761 specGC 0.4179 jGC +0.0201 j_par +0.0146 j_zas +0.0354 CE 1.6443 loss 3.4590 dE/nt -0.0536 zlozony 28054 | 6s  (bez poprawy 9/60)
+[40/60] CE 0.8518 | energia -0.2475 parowania 0.1914 sklad 0.0520 | val ident 0.2848 zbal_par 0.3398 zbal_zas 0.2772 specGC 0.4016 jGC +0.0180 j_par +0.0110 j_zas +0.0369 CE 1.6570 loss 3.4848 dE/nt -0.0633 zlozony 28063 | 6s  (bez poprawy 10/60)
+[41/60] CE 0.8490 | energia -0.2481 parowania 0.1913 sklad 0.0530 | val ident 0.2856 zbal_par 0.3440 zbal_zas 0.2762 specGC 0.4200 jGC +0.0251 j_par +0.0171 j_zas +0.0355 CE 1.6689 loss 3.5196 dE/nt -0.0530 zlozony 29053 | 6s  *najlepszy -> zapis
+[42/60] CE 0.8461 | energia -0.2474 parowania 0.1914 sklad 0.0521 | val ident 0.2851 zbal_par 0.3421 zbal_zas 0.2762 specGC 0.4073 jGC +0.0219 j_par +0.0143 j_zas +0.0355 CE 1.6622 loss 3.4947 dE/nt -0.0598 zlozony 29060 | 6s  (bez poprawy 1/60)
+[43/60] CE 0.8435 | energia -0.2473 parowania 0.1914 sklad 0.0531 | val ident 0.2848 zbal_par 0.3413 zbal_zas 0.2775 specGC 0.3960 jGC +0.0162 j_par +0.0122 j_zas +0.0373 CE 1.6890 loss 3.5547 dE/nt -0.0651 zlozony 28065 | 6s  (bez poprawy 2/60)
+[44/60] CE 0.8418 | energia -0.2479 parowania 0.1914 sklad 0.0518 | val ident 0.2856 zbal_par 0.3422 zbal_zas 0.2766 specGC 0.4069 jGC +0.0215 j_par +0.0142 j_zas +0.0360 CE 1.6872 loss 3.5561 dE/nt -0.0606 zlozony 29061 | 6s  (bez poprawy 3/60)
+[45/60] CE 0.8398 | energia -0.2479 parowania 0.1914 sklad 0.0526 | val ident 0.2856 zbal_par 0.3430 zbal_zas 0.2769 specGC 0.4093 jGC +0.0204 j_par +0.0150 j_zas +0.0364 CE 1.6938 loss 3.5744 dE/nt -0.0595 zlozony 29060 | 6s  (bez poprawy 4/60)
+[46/60] CE 0.8371 | energia -0.2477 parowania 0.1914 sklad 0.0522 | val ident 0.2847 zbal_par 0.3404 zbal_zas 0.2767 specGC 0.4110 jGC +0.0163 j_par +0.0111 j_zas +0.0361 CE 1.6965 loss 3.5873 dE/nt -0.0568 zlozony 28057 | 6s  (bez poprawy 5/60)
+[47/60] CE 0.8348 | energia -0.2483 parowania 0.1914 sklad 0.0530 | val ident 0.2861 zbal_par 0.3413 zbal_zas 0.2776 specGC 0.3945 jGC +0.0171 j_par +0.0124 j_zas +0.0374 CE 1.7110 loss 3.6115 dE/nt -0.0660 zlozony 29066 | 6s  (bez poprawy 6/60)
+[48/60] CE 0.8321 | energia -0.2482 parowania 0.1914 sklad 0.0524 | val ident 0.2860 zbal_par 0.3418 zbal_zas 0.2773 specGC 0.3970 jGC +0.0167 j_par +0.0131 j_zas +0.0371 CE 1.7161 loss 3.6229 dE/nt -0.0657 zlozony 29066 | 6s  (bez poprawy 7/60)
+[49/60] CE 0.8313 | energia -0.2476 parowania 0.1914 sklad 0.0522 | val ident 0.2862 zbal_par 0.3427 zbal_zas 0.2777 specGC 0.4044 jGC +0.0212 j_par +0.0149 j_zas +0.0376 CE 1.7184 loss 3.6335 dE/nt -0.0626 zlozony 29063 | 6s  (bez poprawy 8/60)
+[50/60] CE 0.8295 | energia -0.2478 parowania 0.1913 sklad 0.0529 | val ident 0.2862 zbal_par 0.3432 zbal_zas 0.2776 specGC 0.4045 jGC +0.0194 j_par +0.0151 j_zas +0.0374 CE 1.7231 loss 3.6466 dE/nt -0.0612 zlozony 29061 | 6s  (bez poprawy 9/60)
+[51/60] CE 0.8286 | energia -0.2482 parowania 0.1914 sklad 0.0521 | val ident 0.2853 zbal_par 0.3414 zbal_zas 0.2770 specGC 0.4162 jGC +0.0209 j_par +0.0131 j_zas +0.0366 CE 1.7198 loss 3.6448 dE/nt -0.0566 zlozony 29057 | 6s  (bez poprawy 10/60)
+[52/60] CE 0.8284 | energia -0.2475 parowania 0.1914 sklad 0.0524 | val ident 0.2870 zbal_par 0.3420 zbal_zas 0.2780 specGC 0.4088 jGC +0.0194 j_par +0.0136 j_zas +0.0380 CE 1.7270 loss 3.6577 dE/nt -0.0589 zlozony 29059 | 6s  (bez poprawy 11/60)
+[53/60] CE 0.8263 | energia -0.2474 parowania 0.1914 sklad 0.0529 | val ident 0.2866 zbal_par 0.3420 zbal_zas 0.2778 specGC 0.4034 jGC +0.0177 j_par +0.0134 j_zas +0.0377 CE 1.7323 loss 3.6698 dE/nt -0.0621 zlozony 29062 | 6s  (bez poprawy 12/60)
+[54/60] CE 0.8250 | energia -0.2479 parowania 0.1913 sklad 0.0526 | val ident 0.2869 zbal_par 0.3434 zbal_zas 0.2780 specGC 0.4114 jGC +0.0232 j_par +0.0160 j_zas +0.0380 CE 1.7335 loss 3.6753 dE/nt -0.0590 zlozony 29059 | 6s  (bez poprawy 13/60)
+[55/60] CE 0.8250 | energia -0.2476 parowania 0.1914 sklad 0.0527 | val ident 0.2864 zbal_par 0.3432 zbal_zas 0.2777 specGC 0.4056 jGC +0.0217 j_par +0.0156 j_zas +0.0376 CE 1.7354 loss 3.6756 dE/nt -0.0610 zlozony 29061 | 6s  (bez poprawy 14/60)
+[56/60] CE 0.8243 | energia -0.2484 parowania 0.1914 sklad 0.0530 | val ident 0.2867 zbal_par 0.3432 zbal_zas 0.2778 specGC 0.4062 jGC +0.0217 j_par +0.0155 j_zas +0.0377 CE 1.7327 loss 3.6703 dE/nt -0.0611 zlozony 29061 | 6s  (bez poprawy 15/60)
+[57/60] CE 0.8239 | energia -0.2478 parowania 0.1913 sklad 0.0521 | val ident 0.2868 zbal_par 0.3428 zbal_zas 0.2775 specGC 0.4102 jGC +0.0217 j_par +0.0150 j_zas +0.0374 CE 1.7319 loss 3.6700 dE/nt -0.0587 zlozony 29059 | 6s  (bez poprawy 16/60)
+[58/60] CE 0.8250 | energia -0.2470 parowania 0.1914 sklad 0.0521 | val ident 0.2865 zbal_par 0.3425 zbal_zas 0.2776 specGC 0.4066 jGC +0.0215 j_par +0.0146 j_zas +0.0374 CE 1.7338 loss 3.6730 dE/nt -0.0607 zlozony 29061 | 6s  (bez poprawy 17/60)
+[59/60] CE 0.8232 | energia -0.2477 parowania 0.1914 sklad 0.0526 | val ident 0.2864 zbal_par 0.3425 zbal_zas 0.2779 specGC 0.4062 jGC +0.0206 j_par +0.0145 j_zas +0.0378 CE 1.7345 loss 3.6746 dE/nt -0.0607 zlozony 29061 | 6s  (bez poprawy 18/60)
+[60/60] CE 0.8244 | energia -0.2475 parowania 0.1914 sklad 0.0525 | val ident 0.2865 zbal_par 0.3428 zbal_zas 0.2778 specGC 0.4064 jGC +0.0211 j_par +0.0149 j_zas +0.0378 CE 1.7345 loss 3.6745 dE/nt -0.0608 zlozony 29061 | 6s  (bez poprawy 19/60)
 
-najlepszy (zlozony) na walidacji: 31291.0000 | checkpoints/e1_sklad_tv.pt
+najlepszy (zbal_par) na walidacji: 0.3440 | checkpoints/e1_sklad_tv.pt

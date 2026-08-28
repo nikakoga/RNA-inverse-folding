@@ -19,9 +19,9 @@ PAIR_TO_CLASS = {p: i for i, p in enumerate(PAIRS)}
 N_PAIR_CLASSES = len(PAIRS)
 PAIR_TO_BASE_IDX = torch.tensor([[BASE_TO_IDX[a], BASE_TO_IDX[b]] for a, b in PAIRS], dtype=torch.long)
 
-# Sklad NATURALNY. JEDNO ZRODLO PRAWDY dla calego projektu: uzywa go i kara za sklad w E1
-# (`src/loss.py`), i baseline `losowa_kanoniczna` ponizej — dzieki temu obie strony porownania mowia
-# o tym samym rozkladzie i nie moga sie po cichu rozjechac.
+# Sklad NATURALNY — CEL kary za sklad w E1 (`src/loss.py`).
+# NIE uzywa go baseline: ten losuje jednostajnie, zeby nie dostac za darmo wiedzy o skladzie,
+# ktora model musi wyciagnac z danych. Patrz `losowa_kanoniczna` ponizej.
 #
 # Zmierzony na TRZECH OPUBLIKOWANYCH BAZACH struktur RNA (bpRNA, RNAStrAlign, ArchiveII; n = 29 571),
 # z wykluczeniem struktur obecnych w naszej walidacji albo tescie. Odtworzenie: `python -m src.cele`.
@@ -168,14 +168,25 @@ def koduj(structs: list[str], seqs: list[str] | None, device):
 
 
 def losowa_kanoniczna(struct: str, czestosci: dict | None = None, rng=None) -> str:
-    """BASELINE: losowa sekwencja z zachowaniem kanoniczności par.
+    """BASELINE: losowa sekwencja z zachowaniem kanonicznosci par. Rozklad JEDNOSTAJNY.
 
-    Mierzy, ile da się ugrać SAMĄ komplementarnością zasad, bez żadnego uczenia.
+    Mierzy, ile da sie ugrac SAMA komplementarnoscia zasad, bez zadnej wiedzy o RNA. W miejscu pary
+    losuje dowolny z trzech typow z rownym prawdopodobienstwem, a na pozycji niesparowanej dowolna
+    z czterech zasad.
+
+    DLACZEGO JEDNOSTAJNIE, A NIE WG NATURALNYCH CZESTOSCI. Losowanie wazone `NATURAL_PAIR` dawaloby
+    baseline'owi ZA DARMO wiedze o skladzie RNA — te sama, ktora model musi dopiero wyciagnac
+    z danych treningowych. Baseline ma byc punktem "zero wiedzy", zeby pobicie go cokolwiek znaczylo.
+
+    Skutek uboczny, przydatny przy czytaniu wykresow: taki baseline ma czulosc rowna 1/3 dla kazdego
+    typu pary i 1/4 dla kazdej zasady, czyli lezy dokladnie na poziomie losowym.
+
+    `czestosci` pozwala podac wlasny rozklad, np. naturalny, jesli potrzebny jest mocniejszy punkt
+    odniesienia.
     """
     import random
     rng = rng or random
-    cz = czestosci or {"loop": [NATURAL_LOOP[b] for b in BASES],
-                       "pair": [NATURAL_PAIR[k] for k in ("GC", "AU", "GU")]}
+    cz = czestosci or {"loop": [0.25] * 4, "pair": [1 / 3] * 3}
     s = [""] * len(struct)
     typy = [("G", "C"), ("A", "U"), ("G", "U")]
     for i, j in parse_pairs(struct):

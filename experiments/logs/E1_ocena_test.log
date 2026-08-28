@@ -2,19 +2,30 @@ C:\Users\janle\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\n
   warnings.warn(
 checkpoints/e1_sklad_tv.pt
 zbior TEST: 728 struktur | Eterna <= 200 nt: 39
+dekodowanie: probkowanie (ziarno 0)
 wlasna kara za sklad: kara TV (nasza)
-perplexity na zbiorze test: 4.618   (1 = pewny, 4 = calkiem niezdecydowany)
 
-zbior         dlugosc     n  identycznosc_nt  identycznosc_par    dE/nt  kara_wlasna
-test         <= 50 nt    14            30.9%             60.2%  -0.2566       1.0602
-test        <= 100 nt   458            28.9%             47.2%  -0.3199       1.0464
-test        <= 200 nt   728            29.4%             48.2%  -0.3000       1.0393
-eterna       <= 50 nt    12            56.7%             73.6%  -0.1508       1.0770
-eterna      <= 100 nt    22            53.4%             73.8%  -0.1651       1.0702
-eterna      <= 200 nt    39            53.0%             75.2%  -0.1481       1.0337
+zbior         dlugosc     n  ident_nt  ident_par  zbal_par  zbal_zas    dE/nt  kara_wlasna
+test         <= 50 nt    14     27.4%      40.1%     27.5%     27.3%   0.0428       0.3160
+test        <= 100 nt   458     27.8%      43.1%     35.3%     25.7%  -0.0682       0.2276
+test        <= 200 nt   728     27.4%      42.6%     34.5%     25.6%  -0.0571       0.2135
+eterna       <= 50 nt    12     28.4%      51.5%     36.5%     35.6%   0.1321       0.2878
+eterna      <= 100 nt    22     27.1%      50.5%     29.4%     23.6%   0.1141       0.2686
+eterna      <= 200 nt    39     28.6%      50.9%     33.2%     21.1%   0.1227       0.2304
+
+CZULOSC OSOBNO DLA KAZDEJ KLASY (kubelek <= 200 nt)
+  zbior         par GC    par AU    par GU       petle A    petle C    petle G    petle U
+  test           60.2%     31.1%     12.2%         32.7%      21.0%      21.9%      26.7%
+  eterna         58.7%     29.0%     11.9%         31.9%      11.8%      26.3%      14.3%
+  poziom losowy     33.3%     33.3%     33.3%         25.0%      25.0%      25.0%      25.0%
+
+SPECYFICZNOSC OSOBNO DLA KAZDEJ KLASY (kubelek <= 200 nt)
+  zbior         par GC    par AU    par GU       petle A    petle C    petle G    petle U
+  test           41.2%     70.8%     89.6%         67.5%      79.3%      79.4%      74.6%
+  eterna         40.9%     69.9%     88.7%         71.2%      80.2%      77.7%      73.8%
 
 Kubelki NARASTAJACE: wiersz '<= 100 nt' obejmuje takze struktury krotsze niz 50 nt.
-Kary liczone na WYGENEROWANYCH sekwencjach, a w treningu na rozkladach prawdopodobienstwa
-— liczby nie zgadzaja sie z logiem treningu i to nie jest blad.
+zbal_par / zbal_zas to srednie czulosci BEZ WAGI. Predyktor staly (np. zawsze G:C) spada
+tam do poziomu losowego, mimo ze na zwyklej identycznosci wypada lepiej niz baseline.
 
 zapisano: experiments/analysis/e1_test.csv

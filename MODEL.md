@@ -48,7 +48,7 @@ Model podczas uczenia i podczas generowania dostaje dokładnie to samo wejście 
 więc człony energetyczne można wstawić wprost do funkcji straty i optymalizować gradientem.
 
 Zostaje jedna, znacznie mniejsza rozbieżność: trening liczy komponenty na **rozkładach softmax**,
-a generowanie wybiera **argmax**. Wracamy do tego niżej.
+a generowanie musi wyprodukować konkretne litery. Wracamy do tego niżej.
 
 ### Ograniczenie: holistycznie, ale tylko raz
 
@@ -59,19 +59,31 @@ rewiduje; „holistycznie" znaczy tu „z pełnym kontekstem", a nie „iteracyj
 Konsekwencji spodziewamy się przede wszystkim na strukturach długich, gdzie jeden nietrafiony wybór
 nie ma jak zostać naprawiony.
 
-### Ograniczenie: softmax w treningu, argmax w generowaniu
+### Dekodowanie: dlaczego losujemy, a nie bierzemy maksimum
 
 Komponenty energii, parowania i składu liczymy na **miękkich rozkładach** (softmax) podczas treningu.
-Podczas generowania wybieramy **argmax** — twardą decyzję. Jeśli rozkład jest rozmyty (high-entropy),
-oczekiwana energia może być niska, ale rzeczywista energia wygenerowanej sekwencji mogłaby być wyższa.
-To jest potencjalny problem dla komponentów o silnych preferencjach.
+Generowanie musi z nich zrobić konkretne litery i sposób, w jaki to robi, decyduje o wyniku.
+
+`argmax` bierze klasę najbardziej prawdopodobną. To zawodzi, bo model prawie nie korzysta z wejścia
+i produkuje **niemal ten sam płaski rozkład na każdej pozycji**. Zwycięzca jest wtedy wszędzie ten
+sam, więc `argmax` zamienia rozkład w punkt. Zmierzone na głowie par: pewność zwycięzcy 0,34–0,43
+przy 0,167 dla jednostajnego, przewaga nad drugim 0,11–0,17 — i mimo to rodzina G:C wygrywa na
+91–99,9% pozycji.
+
+Podział na **sześć** klas nie jest tu winny, choć wygląda podejrzanie. `argmax` liczony po trzech
+typach, z masami orientacji zsumowanymi, daje ten sam albo większy nadmiar G:C.
+
+**Losujemy z rozkładu** (`--dekodowanie probkowanie`), bo oczekiwany skład wylosowanej sekwencji
+**równa się** składowi rozkładu. Wartość kary raportowana w treningu opisuje więc dokładnie to, co
+widać na wygenerowanej sekwencji. Ceną jest utrata determinizmu — `--seed-dekodowania` jest częścią
+wyniku, bez niego nic nie da się odtworzyć.
 
 ---
 
 ## Funkcja straty
 
 ```
-strata = CE
+strata = CE  (opcjonalnie WAZONA odwrotnie do czestosci klas, --wagi-klas)
        + w_energia      * energia
        + w_parowania    * parowania
        + KARA ZA SKLAD, jeden z dwoch wariantow:
@@ -80,10 +92,16 @@ strata = CE
            w_sklad_par   * sklad_par    /
 ```
 
-[`src/loss.py`](src/loss.py). Wagi zerowe domyślnie — czysta cross-entropia jest punktem odniesienia.
+[`src/loss.py`](src/loss.py). Wagi kar zerowe domyślnie — czysta cross-entropia jest punktem
+odniesienia. Warianty kary za skład są **alternatywne**: włącza się jeden albo drugi.
 
-Warianty kary za skład są **alternatywne**: włącza się jeden albo drugi. Na tym polega cała różnica
-między E1 a E2, opisana w [EKSPERYMENTY.md](EKSPERYMENTY.md).
+Dwie niezależne decyzje dają sześć eksperymentów opisanych w [EKSPERYMENTY.md](EKSPERYMENTY.md):
+
+```
+             kara TV     kara progowa    brak kary
+CE zwykla       E1            E2            CE
+CE wazona       E1W           E2W           CEW
+```
 
 ### CE — cross-entropia
 
@@ -91,6 +109,38 @@ Kara za niepewność wobec prawdziwej odpowiedzi. Model dla każdej pozycji poda
 Jeśli prawdziwa litera to A, a model dał jej 0,7 — kara mała; jeśli 0,1 — kara duża. To z tego członu
 model uczy się, **co w jakim motywie faktycznie występuje** (np. że w pętlach spinek jest więcej
 adeniny), bo widzi z kontekstu, w jakim motywie stoi.
+
+**CE jest jedynym członem, który ogląda sekwencję referencyjną.** Energia, parowania i skład dają się
+policzyć bez jej znajomości, więc nie mają jak przekazać informacji o tym, która para należy do
+której pozycji. Żadna waga tego nie zmieni, bo waga steruje siłą, a nie rodzajem informacji.
+
+Liczona jako **suma dwóch średnich** — osobno dla głowicy par i głowicy zasad — żeby obie miały równy
+wpływ na gradient niezależnie od tego, ile pozycji obsługują. Do logu trafia natomiast jedna średnia
+po wszystkich pozycjach, tak samo jak w walidacji; inaczej „CE treningowa obok walidacyjnej"
+porównywałaby wielkości w różnej skali i przeuczenie wyglądałoby łagodniej, niż jest.
+
+### Ważona CE — odpowiednik trafności zbalansowanej po stronie uczenia
+
+`--wagi-klas`. Zwykła CE optymalizuje trafienia ważone liczebnością, więc klasa G:C (60% par
+treningowych) wnosi do gradientu osiem razy więcej niż G:U (5%). Modelowi opłaca się wtedy zbudować
+wokół klasy najczęstszej — czyli dokładnie ta awaria, którą mierzymy.
+
+Wagi `1/częstość`, liczone **na treningu**, znormalizowane do średniej 1, więc skala straty się nie
+zmienia i wagi pozostałych członów zachowują znaczenie. Zmierzone:
+
+```
+pary   G-C 0,30   C-G 0,39   A-U 0,66   U-A 0,71   G-U 2,07   U-G 1,88
+petle  A 0,76   C 1,22   G 1,16   U 0,86
+```
+
+Relacja do miar: `zbal_par` wyrównuje wkład klas w **pomiarze**, ważona CE wyrównuje go
+w **gradiencie**. To ta sama idea po dwóch stronach.
+
+**CE w logu pozostaje nieważona**, żeby dało się ją zestawiać z walidacyjną i z innymi przebiegami.
+Wagi zmieniają to, co model optymalizuje, a nie to, czym go mierzymy.
+
+Częstości pochodzą wyłącznie z treningu — sięgnięcie po walidację albo test byłoby zaglądaniem
+w odpowiedź.
 
 ### Energia — człony sekwencyjne modelu Turnera
 
@@ -160,8 +210,9 @@ projektowe w konwencji DesiRNA, a nie opis natury.
 na zasady **w całej sekwencji**, razem ze sparowanymi. E2 nie potrafi więc powiedzieć „za mało
 adeniny w pętlach", tylko „za mało adeniny w ogóle".
 
-**Ograniczenie wspólne dla obu.** Kara liczy się na miękkich rozkładach, a sekwencja powstaje przez
-`argmax`. Model może mieć rozkład wyglądający naturalnie i przy tym na każdej pozycji wskazywać G-C.
+**Ograniczenie wspólne dla obu.** Kara liczy się na miękkich rozkładach, a nie na gotowej sekwencji.
+Przy losowaniu z rozkładu obie wielkości się pokrywają, ale każde inne dekodowanie tę zgodność łamie
+— przy `argmax` model z rozkładem wyglądającym naturalnie stawiał G-C na prawie każdej pozycji.
 
 **Ograniczenie wspólne dla obu, drugie.** Wszystkie typy pętli dzielą jeden cel: spinka, wybrzuszenie,
 multipętla i regiony zewnętrzne, mimo że w naturze różnią się składem. Rozdzielenie ich per sekwencja
@@ -178,40 +229,97 @@ sekwencji nie ma ich wcale.
 optymalizator   AdamW, lr 3e-4, weight decay 0,01
 harmonogram     cosine annealing przez cala dlugosc treningu
 batch           32 struktury
-epoki           60, early stopping po 10 bez poprawy
+epoki           60, BEZ wczesnego zatrzymania
 przycinanie     norma gradientu <= 1,0
 ```
 
-Jedna epoka trwa około 7 sekund na RTX 4060, więc pełny trening to kilka minut.
+Jedna epoka trwa około 6 sekund na RTX 4060, więc pełny trening to sześć minut.
+
+### Dlaczego bez wczesnego zatrzymania
+
+Domyślnie `--cierpliwosc` równa się `--epoki`, więc próg nigdy się nie uruchamia. Dwa powody:
+
+**`zbal_par` szumi za bardzo, żeby „przestało się poprawiać" cokolwiek znaczyło.** Miara stoi tuż nad
+poziomem losowym i skacze o ±0,3 pp między epokami, więc jej maksimum może wypaść zanim model
+czegokolwiek się nauczy. Przy cierpliwości 10 trening E1 zatrzymał się w epoce 11 i zapisał **epokę
+pierwszą** — rekord padł na starcie i przez dziesięć epok nikt go nie pobił. Przebiegi kończyły się
+wtedy po 11, 26, 38, 43 i 60 epokach, więc porównanie kar mierzyło głównie czas uczenia.
+
+**Harmonogram kroku uczenia jest rozpisany na 60 epok.** Cosine schodzi do zera dopiero w ostatniej;
+przerwanie w epoce 11 zostawia krok na ~97% wartości początkowej, czyli model nigdy nie dostaje fazy
+dostrajania małymi krokami.
+
+Ochrona przed przeuczeniem nie zniknęła — przeniosła się w całości na **wybór epoki**, który jest
+silniejszy, bo ogląda wszystkie 60 epok zamiast zatrzymywać się na pierwszym płaskowyżu. Widać, że
+działa: w sześciu przebiegach zapisane epoki to 28–51, żadna nie jest ostatnia.
 
 ### Wybór najlepszej epoki — miejsce, w którym łatwo się pomylić
 
-Po każdej epoce liczymy kryterium na **pełnym zbiorze walidacyjnym** i zapisujemy checkpoint tylko
-wtedy, gdy się poprawiło. Żadne z czterech kryteriów nie przewiduje struktury.
+Po każdej epoce liczymy **wszystkie** kryteria na pełnym zbiorze walidacyjnym i wypisujemy je do logu;
+`--wybor` decyduje tylko, które z nich zapisuje checkpoint. Żadne nie przewiduje struktury.
 
 ```
---wybor identycznosc_nt   domyslne; ulamek pozycji trafionych wobec prawdziwej sekwencji
+--wybor zbal_par          DOMYSLNE; srednia czulosc po 3 typach par  (poziom losowy 33,3%)
+--wybor zbal_zasady       srednia czulosc po 4 zasadach w petlach    (poziom losowy 25,0%)
+--wybor youden_GC         czulosc + specyficznosc - 1 dla typu G:C   (poziom losowy 0)
+--wybor youden_par        to samo, usrednione po 3 typach par        (poziom losowy 0)
+--wybor youden_zasady     to samo, usrednione po 4 zasadach          (poziom losowy 0)
+--wybor identycznosc_nt   ulamek pozycji trafionych wobec sekwencji referencyjnej
 --wybor ce                srednia cross-entropia na walidacji
 --wybor loss              PELNA strata tego modelu, z jego wlasnymi karami
---wybor energia           o ile stabilizujemy cel lepiej niz prawdziwa sekwencja
+--wybor energia           o ile stabilizujemy cel lepiej niz sekwencja referencyjna
+--wybor zlozony           identycznosc jako klucz glowny, dE/nt jako rozstrzygacz remisow
 ```
 
-**Kryterium musi być takie samo w E1 i E2**, inaczej porównanie kar traci sens.
+**Dlaczego domyslne przestalo byc `zlozony`.** Oba jego czlony premiuja nadprodukcje klasy
+najczestszej. Identycznosc jest maksymalizowana przez staly predyktor — sekwencja z samych par G:C
+dostaje 48,4%, wiecej niz ktorykolwiek z naszych modeli. A `dE/nt` spada, gdy udzial G:C rosnie, bo
+G:C jest para najstabilniejsza. Wybieralismy wiec epoke miara, ktora nagradza dokladnie te awarie,
+ktora eksperyment ma zmierzyc.
+
+**Dlaczego nie ma samej specyficznosci.** Specyficznosc G:C rosnie do 100%, gdy model PRZESTAJE
+wystawiac G:C — model z samych A:U mialby ja idealna. Jest wiec podatna na predyktor staly tak samo
+jak identycznosc, tylko z drugiej strony. Wchodzi zamiast niej wskaznik Youdena, ktory laczy czulosc
+ze specyficznoscia:
+
+```
+J = czulosc + specyficznosc - 1
+```
+
+Jego poziom odniesienia to DOKLADNIE ZERO dla kazdego modelu przypisujacego klasy niezaleznie od
+pozycji, bez wzgledu na sklad wyjscia — taki model ma czulosc rowna q, a specyficznosc rowna 1 - q,
+wiec suma zawsze wychodzi 1. Nie da sie go podbic przesunieciem skladu w zadna strone. To jedyna
+nasza miara z zerem jako poziomem losowym; reszta ma 1/k, co gorzej sie czyta.
+
+Sekwencje walidacyjne generujemy **raz na epokę**, z ustalonym ziarnem, i z nich liczymy identyczność,
+czułości klasowe oraz `dE/nt`. Stałe ziarno sprawia, że porównujemy epoki, a nie losowania.
+
+**Kryterium musi być takie samo we wszystkich porównywanych przebiegach**, inaczej
+porównanie kar traci sens. Wszystkie sześć eksperymentów używa `zbal_par`.
+
+**Youden czy `zbal_par`?** Do wyboru epoki są praktycznie wymienne — sprawdzone na wszystkich sześciu
+przebiegach, korelacja `0,995–0,999`, a tam gdzie wskazują różne epoki, różnica w jakości wynosi
+0,00–0,08 pp. Powód jest algebraiczny: rozpisując definicję, `J_k = (czułość_k − udział_k na
+wyjściu) / (1 − częstość_k)`, a `zbal_par` to średnia z samych czułości. Youden dokłada tylko
+odjęcie udziału i normalizację przez rzadkość klasy. **Do raportowania jest jednak lepszy**, bo jego
+poziom odniesienia to zero, więc czyta się go bez dopowiadania „przy losowym 33,3%".
 
 **Dlaczego `loss` nie jest domyślne**, mimo że jest standardem w uczeniu maszynowym: nasza strata
 zawiera człon parowań z trywialnym minimum. Wybieranie epoki o najniższej stracie może więc
 systematycznie wskazywać epokę najbardziej zdegenerowaną — czyli dokładnie tę awarię, którą
-eksperyment ma zmierzyć. Do tego `loss` znaczy co innego w E1 i w E2, bo obejmuje inną karę.
+eksperyment ma zmierzyć. Do tego `loss` znaczy co innego w każdym z sześciu przebiegów, bo obejmuje
+inną karę i inne ważenie CE.
 
-`identycznosc_nt` i `ce` są zewnętrzne wobec obu kar i identyczne dla obu eksperymentów. Różnią się
-tym, że pierwsza liczy się na `argmax`, a druga na rozkładach, więc widzi też pewność modelu.
-`energia` premiuje mocne helisy, a nie podobieństwo do biologii — te cele ciągną w różne strony.
+`identycznosc_nt` i `ce` są zewnętrzne wobec kar i identyczne dla wszystkich eksperymentów. Różnią
+się tym, że pierwsza liczy się na wygenerowanej sekwencji, a druga na rozkładach, więc widzi też
+pewność modelu. `energia` premiuje mocne helisy, a nie podobieństwo do biologii — te cele ciągną
+w różne strony.
 
 ---
 
 ## Ocena
 
-[`src/evaluate.py`](src/evaluate.py). Dwa zbiory, pięć miar, **żadna nie przewiduje struktury**.
+[`src/evaluate.py`](src/evaluate.py). Dwa zbiory, **żadna miara nie przewiduje struktury**.
 
 ```
 TEST NATURALNY     20% puli, rodziny nieobecne w treningu. Ocena glowna.
@@ -220,11 +328,20 @@ ETERNA <= 200 nt   39 zagadek projektowych ludzi. Pomocnicza, spoza naszych dany
 
 | miara | co znaczy | rola |
 |---|---|---|
-| `identycznosc_nt` | ułamek **pozycji** z tą samą zasadą co wzorzec | rozstrzyga |
-| `identycznosc_par` | ułamek **par** z trafionym TYPEM; `G-C` i `C-G` to jedno trafienie | rozstrzyga |
-| `dE/nt` | o ile stabilizujemy cel lepiej niż prawdziwa sekwencja | kontrola |
-| `perplexity` | z ilu zasad model średnio wybiera (1 = pewny, 4 = niezdecydowany) | kontrola |
+| `zbal_par`, `zbal_zasady` | czułość uśredniona po klasach, bez wagi | **rozstrzyga** |
+| Youden | czułość + specyficzność − 1, per klasa i uśredniony | **rozstrzyga** |
+| `identycznosc_nt` | ułamek **pozycji** z tą samą zasadą co referencja | pomocnicza |
+| `identycznosc_par` | ułamek **par** z trafionym TYPEM; `G-C` i `C-G` to jedno trafienie | pomocnicza |
+| czułość i specyficzność per klasa | razem wykrywają nadprodukcję jednej klasy | diagnostyka |
+| `dE/nt` | o ile stabilizujemy cel lepiej niż sekwencja referencyjna | kontrola |
 | `kara_wlasna` | wartość kary za skład tego modelu | diagnostyka |
+
+**Identyczności zeszły do roli pomocniczej i trzeba wiedzieć dlaczego.** Dla predyktora
+przypisującego klasy niezależnie od pozycji `identycznosc_par` wynosi dokładnie
+`Σ udział_k · częstość_k`, czyli da się ją policzyć z samego składu wyjścia. Zmierzone na naszych
+modelach: przewidziana z samego składu zgadza się z rzeczywistą do 1–2 pp. Sekwencja z samych par
+G:C dostaje 48,4%, więcej niż którykolwiek z modeli. Ta miara premiuje więc trafienie w skład,
+a nie wiedzę o tym, gdzie która para stoi.
 
 **Dwie identyczności mają różne mianowniki.** Architektura wymusza parę wszędzie tam, gdzie struktura
 jej żąda, więc model nie może postawić pary w złym miejscu ani jej pominąć — rozliczanie go z
@@ -232,7 +349,10 @@ rozmieszczenia par nie miałoby sensu. Da się ocenić tylko, **który typ** wyb
 jest tam para, nie pozycja. Z definicji `identycznosc_par >= identycznosc_nt`, a różnica między nimi
 to błędy samej orientacji.
 
-**`kara_wlasna` to inna wielkość w E1 i w E2** — tych liczb nie wolno zestawiać ze sobą.
+**`kara_wlasna` to inna wielkość w każdym wariancie kary** — liczb z E1 i E2 nie wolno zestawiać ze
+sobą. Odpowiada na pytanie „czy moja kara zrobiła to, co obiecywała", a nie „która kara jest lepsza".
+Do porównywania modeli między sobą służy odległość TV od składu **referencyjnego** — miara neutralna,
+niezwiązana z celem żadnej z kar.
 
 **Czego tu nie ma:** `rozwiazane` i `F1`. Obie wymagają przewidzenia struktury RNAfoldem, który ma
 własny sufit dokładności, więc poprawnie zaprojektowana sekwencja bywa uznawana za błędną z powodu
@@ -241,9 +361,13 @@ ograniczeń narzędzia, a nie modelu. Konsekwencja, którą trzeba znać: nie od
 
 ### Baseline
 
-Sekwencja losowana z naturalnych częstości, z zachowaniem komplementarności par
-(`src/dataset.py::losowa_kanoniczna`). Mierzy, ile da się ugrać **samą komplementarnością zasad**,
-bez żadnego uczenia.
+Sekwencja losowana **jednostajnie**, z zachowaniem komplementarności par
+(`src/dataset.py::losowa_kanoniczna`): w miejscu pary dowolny z trzech typów po 1/3, na pozycji
+niesparowanej dowolna zasada po 1/4. Mierzy, ile da się ugrać **samą komplementarnością zasad**,
+bez żadnej wiedzy o RNA.
+
+Losowanie ważone naturalnymi częstościami dałoby baseline'owi za darmo wiedzę o składzie, którą model
+musi wyciągnąć z danych — dlatego go nie stosujemy.
 
 ```
 python -m src.evaluate --baseline --na test

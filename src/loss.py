@@ -198,6 +198,17 @@ class KomponentyNAR:
 
         Kazda sekwencja ma i pary, i pozycje niesparowane: filtr `paired_fraction >= 0.5` wymusza to
         pierwsze, a domkniecie helisy petla — to drugie. Oba czlony sa wiec zawsze okreslone.
+
+        ZWRACAMY OBA CZLONY OSOBNO, bo ablacja (`experiments/analysis/ablacja_kar.csv`) pokazala, ze
+        dzialaja w przeciwne strony:
+
+          PETLE  cel A 0,324 C 0,208 G 0,217 U 0,252 jest trafny — sklad petli praktycznie nie rozni
+                 sie miedzy rodzinami, wiec kara pomaga. Jej zdjecie pogarsza TV petli 2-3 krotnie.
+          PARY   cel G:C 0,599 pasuje do TRENINGU (0,600), a nie do nowych rodzin (0,484), wiec kara
+                 systematycznie prowadzi w zla strone. Jej zdjecie podnosi Youdena o 34-67%.
+
+        Wywolujacy nadaje kazdemu czlonowi wlasna wage. Waga 1,0 na obu odtwarza dokladnie
+        poprzednie zachowanie (E1), a 0,0 na parach i 1,0 na petlach daje E3.
         """
         # typy par: klasy 0,1 = G:C; 2,3 = A:U; 4,5 = G:U            -> (B,3)
         r_par = self._udzialy_typow_par(p_par, otw)
@@ -208,7 +219,7 @@ class KomponentyNAR:
 
         d_par = 0.5 * (r_par - self.cel_pary).abs().sum(-1)                         # (B,)
         d_nsp = 0.5 * (r_nsp - self.cel_petle).abs().sum(-1)                        # (B,)
-        return (d_par + d_nsp).mean()
+        return d_par.mean(), d_nsp.mean()
 
     # -------------------------------------------------- kara skladu wg specyfikacji promotora
     def _udzialy_zasad(self, p_par, p_zasad, partner, otw, realne):

@@ -1,8 +1,9 @@
-"""Podzial 60/20/20 — losowy albo FAMILY-AWARE.
+"""Podzial 60/20/20, FAMILY-AWARE. Innego trybu nie ma i nie powinno byc.
 
-DLACZEGO FAMILY-AWARE. Przy podziale losowym po strukturach ta sama rodzina Rfam trafia i do treningu,
-i do testu. Model moze wtedy odtwarzac zapamietany wzorzec rodziny zamiast generalizowac. Zmierzona
-roznica jest duza: identycznosc sekwencyjna spada z 0,49 do 0,31, gdy rodziny sa rozdzielone.
+DLACZEGO TYLKO TAK. Przy podziale losowym po strukturach ta sama rodzina trafia i do treningu, i do
+testu. Rodziny takie jak tRNA maja silnie konserwowana budowe, wiec model odtwarzalby wtedy
+zapamietany referencja rodziny zamiast projektowac sekwencje pod strukture. To jest PRZECIEK, a nie
+lagodniejszy wariant metody, i dlatego tryb losowy nie jest tu w ogole zaimplementowany.
 
 PUŁAPKA, KTORA TRZEBA OBEJSC. Naiwne pakowanie rodzin po samej liczebnosci wprowadza PRZESUNIECIE
 ROZKLADU DLUGOSCI (train mediana 77 nt wobec val 119 nt) i oddaje 85% walidacji jednej rodzinie.
@@ -13,8 +14,7 @@ od 60/20/20, odchylenie rozkladu dlugosci od calej puli, oraz dominacje pojedync
 Losujemy kolejnosc rodzin wielokrotnie i bierzemy najlepszy uklad. Deterministyczne przy danym seedzie.
 
 Uzycie:
-    python -m src.split --tryb rodzinowy
-    python -m src.split --tryb losowy
+    python -m src.split
 """
 
 from __future__ import annotations
@@ -83,21 +83,17 @@ def rodzinowy(df: pd.DataFrame, seed: int = 0, prob: int = 400):
     return {s: df.index[df.family.map(best) == s].tolist() for s in CELE}, best_k
 
 
-def losowy(df: pd.DataFrame, seed: int = 0):
-    idx = np.random.RandomState(seed).permutation(len(df))
-    a, b = int(0.6 * len(df)), int(0.8 * len(df))
-    return {"train": idx[:a].tolist(), "val": idx[a:b].tolist(), "test": idx[b:].tolist()}, 0.0
-
-
 def zbuduj(tryb: str = "rodzinowy", seed: int = 0, gadaj: bool = True) -> dict:
     df = wczytaj()
-    spl, k = (rodzinowy(df, seed) if tryb == "rodzinowy" else losowy(df, seed))
+    if tryb != "rodzinowy":
+        raise SystemExit("Jedyny dopuszczalny tryb to 'rodzinowy' — patrz docstring modulu.")
+    spl, k = rodzinowy(df, seed)
     SPLITS.mkdir(parents=True, exist_ok=True)
     json.dump(spl, open(sciezka(tryb, seed), "w"))
 
     if gadaj:
-        print(f"podzial {tryb.upper()}, seed {seed}, struktur {len(df)}, rodzin {df.family.nunique()}"
-              + (f", koszt ukladu {k:.4f}" if tryb == "rodzinowy" else ""))
+        print(f"podzial {tryb.upper()}, seed {seed}, struktur {len(df)}, "
+              f"rodzin {df.family.nunique()}, koszt ukladu {k:.4f}")
         print(f"\n{'zbior':7}{'n':>6}{'udzial':>8}{'rodzin':>8}{'mediana L':>11}{'<=50 nt':>9}"
               f"{'max rodzina':>13}   najwieksze")
         for s in CELE:
@@ -125,6 +121,6 @@ def wczytaj_split(tryb: str = "rodzinowy", seed: int = 0) -> dict:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tryb", choices=["rodzinowy", "losowy"], default="rodzinowy")
+    ap.add_argument("--tryb", choices=["rodzinowy"], default="rodzinowy")
     ap.add_argument("--seed", type=int, default=0)
     zbuduj(**vars(ap.parse_args()))
