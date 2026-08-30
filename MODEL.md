@@ -73,10 +73,32 @@ przy 0,167 dla jednostajnego, przewaga nad drugim 0,11–0,17 — i mimo to rodz
 Podział na **sześć** klas nie jest tu winny, choć wygląda podejrzanie. `argmax` liczony po trzech
 typach, z masami orientacji zsumowanymi, daje ten sam albo większy nadmiar G:C.
 
-**Losujemy z rozkładu** (`--dekodowanie probkowanie`), bo oczekiwany skład wylosowanej sekwencji
-**równa się** składowi rozkładu. Wartość kary raportowana w treningu opisuje więc dokładnie to, co
-widać na wygenerowanej sekwencji. Ceną jest utrata determinizmu — `--seed-dekodowania` jest częścią
-wyniku, bez niego nic nie da się odtworzyć.
+**Bierzemy `argmax`** (`--dekodowanie argmax`), bo generowanie jest wtedy deterministyczne: nie
+trzeba ziarna, a wynik da się odtworzyć co do litery.
+
+Samo to jednak nie wystarcza i tu leży sedno. Kary liczą się na rozkładach, a `argmax` patrzy tylko,
+kto jest na szczycie. Model może więc mieć rozkład o poprawnym składzie i zdegenerowane wyjście —
+zmierzyliśmy taki o miękkim `G:C 0,622`, który po `argmax` dawał 0,984. Kara była spełniona,
+sekwencja bezużyteczna.
+
+Dlatego kary **też patrzą na twarde wyjście** (`--kary-na-argmax`), przez estymator
+**straight-through**:
+
+```
+w przod:  one-hot z argmax     -> kara widzi to, co NAPRAWDE wyjdzie
+w tyl:    gradient softmaxu    -> jest co optymalizowac
+```
+
+Zapis: `wynik = twarde + miekkie − miekkie.detach()`. W przód człony miękkie się znoszą i zostaje
+one-hot; w tył pochodna członu twardego jest zerowa, więc gradient płynie wyłącznie przez miękki.
+Gradient jest przez to **obciążony** — udajemy, że funkcja schodkowa jest gładka. To znana i przyjęta
+cena; bez niej kara nie ma żadnego wpływu na to, co produkuje `argmax`.
+
+Obie flagi muszą być włączone razem; `src/train.py` ostrzega, jeśli tylko jedna.
+
+**Alternatywa, z której zrezygnowaliśmy:** losowanie z rozkładu. Ma tę zaletę, że oczekiwany skład
+wylosowanej sekwencji równa się składowi rozkładu, więc kara i wyjście zgadzają się bez żadnych
+sztuczek. Ceną jest utrata determinizmu — ziarno staje się częścią wyniku.
 
 ---
 
@@ -189,8 +211,8 @@ Obie wersje liczą się **per sekwencja**, potem uśredniamy po partii. Różni�
 osobno dla dwóch grup:
 
 ```
-TYPY PAR              cel  G:C 0,599   A:U 0,276   G:U 0,124
-ZASADY W PETLACH      cel  A 0,324  C 0,208  G 0,217  U 0,252
+TYPY PAR              cel  G:C 0,551   A:U 0,332   G:U 0,117
+ZASADY W PETLACH      cel  A 0,311  C 0,203  G 0,205  U 0,280
 ```
 
 Kara **dwustronna**: nadmiar boli tak samo jak niedobór. Cel pochodzi ze stałych w `src/loss.py` —
@@ -200,7 +222,7 @@ tego samego źródła, z którego losuje baseline.
 
 ```
 ZASADY W CALEJ SEKWENCJI   progi  A 0,15  C 0,30  G 0,30  U 0,15
-TYPY PAR                   progi  G:C 0,50  A:U 0,20  G:U 0,05  + eskalacja DistribLoss4
+TYPY PAR                   progi  G:C 0,50  A:U 0,20  G:U 0,05
 ```
 
 Kara **jednostronna**: `max(prog − udzial, 0) / prog`, więc nadmiar jest bezkarny. To są więzy
@@ -252,6 +274,39 @@ dostrajania małymi krokami.
 Ochrona przed przeuczeniem nie zniknęła — przeniosła się w całości na **wybór epoki**, który jest
 silniejszy, bo ogląda wszystkie 60 epok zamiast zatrzymywać się na pierwszym płaskowyżu. Widać, że
 działa: w sześciu przebiegach zapisane epoki to 28–51, żadna nie jest ostatnia.
+
+### Numer wybranej epoki nic nie znaczy
+
+Pomiar szumu (`python -m src.szum`, 21 przebiegów) pokazuje, że wybrana epoka skacze bardzo mocno
+przy **niezmienionym ustawieniu** — wystarczy samo ziarno inicjalizacji wag:
+
+```
+E2    epoki  9, 39, 42
+E1W   epoki 13, 18, 29
+E3    epoki 53, 46, 58
+```
+
+Na walidacji wyniki wyglądają przy tym stabilnie — `zbal_par` waha się o 0,125 — więc krzywa
+walidacji jest płaska i wybór epoki niewiele zmienia. **Numeru epoki nie wolno czytać jako
+czegokolwiek znaczącego**, ani jako oznaki przeuczenia, ani jako miary tego, jak długo model się
+uczył.
+
+To jest zarazem mocniejsze uzasadnienie rezygnacji z wczesnego zatrzymania niż oba powody wyżej: przy
+takim rozrzucie każdy próg cierpliwości przerywałby trening w miejscu wyznaczonym przez ziarno,
+a nie przez dane.
+
+### Ta stabilność jest złudzeniem selekcji
+
+Ten sam pomiar na **teście** daje rozrzut `zbal_par` równy 0,535 — **czterokrotnie większy**. Dotyczy
+to wyłącznie miar, po których wybieramy epokę; na identyczności czy składzie oba zbiory szumią tak
+samo.
+
+Powód: wynik walidacyjny to **maksimum z 60 epok**, a maksimum z serii szumiących liczb jest z natury
+stabilniejsze niż pojedynczy pomiar. Test nie bierze udziału w żadnej selekcji, więc pokazuje
+prawdziwą zmienność procedury.
+
+Konsekwencja dla całej pracy: **progu istotności nie wolno mierzyć na zbiorze, na którym dokonuje się
+selekcji.** Zaniża go tam kilkukrotnie i część różnic wygląda wtedy na istotne, choć nie są.
 
 ### Wybór najlepszej epoki — miejsce, w którym łatwo się pomylić
 
@@ -319,12 +374,17 @@ w różne strony.
 
 ## Ocena
 
-[`src/evaluate.py`](src/evaluate.py). Dwa zbiory, **żadna miara nie przewiduje struktury**.
+[`src/evaluate.py`](src/evaluate.py). Zbior testowy, **żadna miara nie przewiduje struktury**.
 
 ```
-TEST NATURALNY     20% puli, rodziny nieobecne w treningu. Ocena glowna.
-ETERNA <= 200 nt   39 zagadek projektowych ludzi. Pomocnicza, spoza naszych danych.
+TEST NATURALNY     20% puli, rodziny nieobecne w treningu
 ```
+
+**Kontrola zgodnosci przed policzeniem czegokolwiek.** Sprawdzamy, czy wygenerowana sekwencja
+w ogole moze sie zwinac w zadana strukture: dlugosc sie zgadza, alfabet to ACGU, a na KAZDEJ pozycji
+sparowanej stoi para kanoniczna. Architektura powinna to gwarantowac — glowica par wybiera jedna
+z szesciu klas kanonicznych — ale gwarancja z konstrukcji to nie to samo co gwarancja sprawdzona.
+Przy usterce ocena sie przerywa. Ostatni przebieg: 95 790 par, zero niekanonicznych.
 
 | miara | co znaczy | rola |
 |---|---|---|

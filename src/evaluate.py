@@ -1,8 +1,12 @@
-"""Ocena modelu. Dwa zbiory, dwie miary — ZADNA nie przewiduje struktury.
+"""Ocena modelu na zbiorze testowym. ZADNA miara nie przewiduje struktury.
 
-ZBIORY
-  TEST NATURALNY    20% puli, rodziny nieobecne w treningu. Ocena GLOWNA.
-  ETERNA <= 200 nt  zagadki projektowe ludzi. Pomocnicza, zewnetrzna wzgledem naszych danych.
+ZBIOR
+  TEST NATURALNY    20% puli, rodziny nieobecne w treningu.
+
+KONTROLA ZGODNOSCI. Przed policzeniem miar sprawdzamy, czy wygenerowana sekwencja w ogole moze sie
+zwinac w zadana strukture: dlugosci sie zgadzaja, alfabet to ACGU, a na kazdej pozycji sparowanej
+stoi para KANONICZNA. Architektura powinna to gwarantowac, ale gwarancja z konstrukcji to nie to
+samo co gwarancja sprawdzona. Patrz `sprawdz_zgodnosc`.
 
 MIARY
   identycznosc_nt   ulamek pozycji, na ktorych trafilismy w litere sekwencji referencyjnej.
@@ -65,17 +69,22 @@ def generuj(model, structs, device, bs=32, dekodowanie="argmax", seed=0):
     argmax        na kazdej pozycji litera o najwiekszym prawdopodobienstwie
     probkowanie   losowanie zgodnie z rozkladem
 
-    DLACZEGO TO NIE JEST DROBIAZG. Model prawie nie korzysta z wejscia i produkuje niemal TEN SAM
-    plaski rozklad na kazdej pozycji: na glowie par pewnosc zwyciezcy 0,34-0,43 przy 0,167 dla
-    jednostajnego, a mimo to rodzina G:C wygrywa na 91-99,9% pozycji. `argmax` bierze zwyciezce, wiec
-    skladem wyjscia staje sie punkt, a nie rozklad. Probkowanie odtwarza rozklad, bo prawdopodobienstwo
-    wylosowania klasy c ROWNA SIE p(c), czyli oczekiwany udzial c w sekwencji to srednia p(c).
+    UZYWAMY `argmax`, bo generowanie jest wtedy DETERMINISTYCZNE: nie trzeba ziarna, a wynik da sie
+    odtworzyc co do litery.
+
+    MUSI TO ISC W PARZE z `--kary-na-argmax` w treningu. Kary licza sie na rozkladach, a `argmax`
+    patrzy tylko, kto jest na szczycie — nie o ile wygrywa. Bez tej flagi model moze miec rozklad
+    o poprawnym skladzie i zdegenerowane wyjscie: zmierzylismy taki o miekkim `G:C 0,622`, ktory po
+    argmaxie dawal 0,984. Flaga wlacza estymator straight-through, dzieki ktoremu kary widza twarde
+    wyjscie. Szczegoly w `src/train.py::twarde_st`.
+
+    `probkowanie` zostawione jako alternatywa: kara i wyjscie zgadzaja sie wtedy bez zadnych sztuczek,
+    bo oczekiwany sklad wylosowanej sekwencji rowna sie skladowi rozkladu. Cena to utrata
+    determinizmu — ziarno staje sie czescia wyniku.
 
     Architektura sie przy tym nie zmienia: to nadal jeden przebieg enkodera, wszystkie pozycje naraz,
-    a para (i,j) nadal jest JEDNA decyzja — losujemy jedna z szesciu klas kanonicznych, wiec para
-    niekanoniczna pozostaje niemozliwa.
-
-    Probkowanie jest losowe, wiec ZIARNO jest czescia wyniku; bez niego nic nie da sie odtworzyc.
+    a para (i,j) nadal jest JEDNA decyzja — jedna z szesciu klas kanonicznych, wiec para niekanoniczna
+    pozostaje niemozliwa.
     """
     if dekodowanie == "probkowanie":
         torch.manual_seed(seed)
@@ -86,20 +95,6 @@ def generuj(model, structs, device, bs=32, dekodowanie="argmax", seed=0):
         out += model.generate(sid, pad, par, [len(x) for x in cs],
                               sample=(dekodowanie == "probkowanie"))
     return out
-
-
-def eterna(max_len=200):
-    """Zagadki Eterny po tym samym filtrze przewagi sparowanych co dane naturalne.
-
-    Czytamy z `data/eterna_working.parquet`, ktory buduje `src/prepare.py`, a NIE z surowego pliku
-    zrodlowego — inaczej ocenialibysmy takze struktury bez przewagi sparowanych. Eterna NIE przechodzi
-    przez cd-hit: nie ma jej w treningu, wiec nie ma tu przecieku, ktoremu odsiewanie mialoby
-    zapobiec, a uszczuplenie zbioru czyniloby nasze liczby nieporownywalnymi z cudzymi.
-    """
-    from src.prepare import wczytaj_eterna
-    d = wczytaj_eterna()
-    d = d[d.secondary_structure.str.len() <= max_len]
-    return d.secondary_structure.tolist(), d.sequence.tolist()
 
 
 TYP_PARY = {"GC": "GC", "CG": "GC", "AU": "AU", "UA": "AU", "GU": "GU", "UG": "GU"}
@@ -152,10 +147,13 @@ def _udzialy(struct, seq):
 def kara_tv(struct, seq):
     """NASZA kara za sklad, policzona na WYGENEROWANEJ sekwencji: odleglosc TV od celu naturalnego.
 
-    Per sekwencja, tak samo jak w treningu. Roznica wobec logu treningowego jest wylacznie taka,
-    ze tam kara liczy sie na rozkladach prawdopodobienstwa, a tu na gotowej sekwencji. Przy
-    `--dekodowanie probkowanie` obie wielkosci sie pokrywaja, bo oczekiwany sklad wylosowanej
-    sekwencji ROWNA SIE skladowi rozkladu; przy `argmax` rozjezdzaja sie drastycznie.
+    Per sekwencja, tak samo jak w treningu — i przy obecnym ustawieniu liczy DOKLADNIE to samo.
+    Trening z `--kary-na-argmax` pokazuje karom twarde wyjscie argmaxu, czyli te sama sekwencje,
+    ktora ogladamy tutaj. Wartosc z logu treningowego i stad powinny sie wiec zgadzac.
+
+    Gdyby ktos wrocil do `--dekodowanie probkowanie` BEZ `--kary-na-argmax`, tez by sie zgadzaly, bo
+    oczekiwany sklad wylosowanej sekwencji rowna sie skladowi rozkladu. Rozjezdzaja sie tylko przy
+    ustawieniu mieszanym: kary na rozkladach, generowanie przez argmax.
     """
     from src.loss import NATURAL_LOOP, NATURAL_PAIR
     _, _, typy, nt, petle, npe = _udzialy(struct, seq)
@@ -167,15 +165,85 @@ def kara_tv(struct, seq):
     return d
 
 
+KANONICZNE = {"GC", "CG", "AU", "UA", "GU", "UG"}
+
+
+def sprawdz_zgodnosc(structs, seqs, opis=""):
+    """KONTROLA: czy wygenerowana sekwencja moze sie zwinac w zadana strukture.
+
+    Architektura powinna to gwarantowac — glowica par wybiera jedna z SZESCIU klas kanonicznych,
+    wiec para niekanoniczna nie ma reprezentacji na wyjsciu. Ale gwarancja wynikajaca z konstrukcji
+    to nie to samo co gwarancja sprawdzona, a blad w kodowaniu, w `generate` albo w indeksowaniu par
+    ujawnilby sie wlasnie tutaj. Dlatego sprawdzamy jawnie, przy kazdej ocenie.
+
+    Cztery warunki:
+      1. dlugosc sekwencji zgadza sie z dlugoscia struktury,
+      2. alfabet to wylacznie ACGU,
+      3. KAZDA para zadana przez strukture zostala odczytana: liczba nawiasow otwierajacych rowna
+         sie liczbie zamykajacych i obie rownaja sie liczbie par zwroconych przez `parse_pairs`,
+      4. na KAZDEJ tak odczytanej pozycji (i,j) para seq[i]+seq[j] jest kanoniczna:
+         G:C, C:G, A:U, U:A, G:U albo U:G.
+
+    WARUNEK 3 NIE JEST FORMALNOSCIA. `parse_pairs` czyta nawiasy stosem i po cichu POMIJA
+    niedomkniete: niesparowany `)` jest ignorowany, a niesparowany `(` zostaje na stosie i nigdy nie
+    trafia do wyniku. Struktura z niezbilansowanymi nawiasami dalaby wiec mniej par, niz deklaruje,
+    a warunek 4 sprawdzilby tylko te znalezione i zameldowal, ze wszystko w porzadku. Bez tej
+    kontroli „wszystkie pary kanoniczne" moglo znaczyc „wszystkie TRZY z dziesieciu, ktore udalo sie
+    odczytac".
+
+    Zwraca liczbe znalezionych usterek; przy zerze wypisuje potwierdzenie.
+    """
+    zle_dl, zle_alf, zle_pary, zle_nawiasy, n_par = [], [], [], [], 0
+    for k, (st, s) in enumerate(zip(structs, seqs)):
+        if len(s) != len(st):
+            zle_dl.append((k, len(st), len(s)))
+            continue
+        obce = set(s) - set(BASES)
+        if obce:
+            zle_alf.append((k, sorted(obce)))
+
+        pary = parse_pairs(st)
+        otw, zam = st.count("("), st.count(")")
+        if not (otw == zam == len(pary)):
+            zle_nawiasy.append((k, otw, zam, len(pary)))
+
+        for i, j in pary:
+            n_par += 1
+            if s[i] + s[j] not in KANONICZNE:
+                zle_pary.append((k, i, j, s[i] + s[j]))
+
+    usterki = len(zle_dl) + len(zle_alf) + len(zle_pary) + len(zle_nawiasy)
+    etykieta = f" [{opis}]" if opis else ""
+    if usterki == 0:
+        print(f"kontrola zgodnosci{etykieta}: OK — {len(structs)} sekwencji, {n_par} par "
+              f"(= liczba nawiasow w strukturach), wszystkie kanoniczne, alfabet ACGU, "
+              f"dlugosci zgodne")
+        return 0
+
+    print(f"KONTROLA ZGODNOSCI{etykieta}: {usterki} USTEREK")
+    for k, dl_s, dl_q in zle_dl[:5]:
+        print(f"  sekwencja {k}: dlugosc {dl_q} zamiast {dl_s}")
+    for k, znaki in zle_alf[:5]:
+        print(f"  sekwencja {k}: obce znaki {znaki}")
+    for k, otw, zam, npar in zle_nawiasy[:5]:
+        print(f"  struktura {k}: nawiasy niezbilansowane — '(' {otw}, ')' {zam}, "
+              f"odczytanych par {npar}")
+    for k, i, j, para in zle_pary[:10]:
+        print(f"  sekwencja {k}, pozycje {i}-{j}: para NIEKANONICZNA '{para}'")
+    if len(zle_pary) > 10:
+        print(f"  ... i {len(zle_pary) - 10} dalszych niekanonicznych par")
+    return usterki
+
+
 def kara_progi(struct, seq):
-    """Kara promotora na WYGENEROWANEJ sekwencji: DistribLoss + DistribLoss3 + DistribLoss4."""
+    """Kara promotora na WYGENEROWANEJ sekwencji: DistribLoss + DistribLoss3."""
     from src.loss import PROG_ZASADY, PROG_PARY
     zas, n, typy, nt, _, _ = _udzialy(struct, seq)
     x = [max(p - zas[b] / n, 0) / p for b, p in PROG_ZASADY.items()]
     wynik = sum(x) / 4
     if nt:
         v = [max(p - typy[k] / nt, 0) / p for k, p in PROG_PARY.items()]
-        wynik += sum(v) / 3 + max(sum(v) - 1, 0)
+        wynik += sum(v) / 3
     return wynik
 
 
@@ -300,12 +368,9 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--na", choices=["test", "val"], default="test",
                     help="'val' = do strojenia (wolno wielokrotnie), 'test' = do raportu (raz)")
-    ap.add_argument("--eterna-max", type=int, default=200,
-                    help="gorny limit dlugosci zagadek Eterny; musi byc <= limitu z src/cdhit.py")
-    ap.add_argument("--dekodowanie", choices=["argmax", "probkowanie"], default="probkowanie",
+    ap.add_argument("--dekodowanie", choices=["argmax", "probkowanie"], default="argmax",
                     help="jak zamienic rozklady modelu na sekwencje; MUSI zgadzac sie z trybem "
-                         "uzytym w walidacji podczas treningu. `argmax` zostawiony wylacznie do "
-                         "odtworzenia diagnozy degeneracji — patrz docstring `generuj`")
+                         "uzytym w walidacji podczas treningu — patrz docstring `generuj`")
     ap.add_argument("--seed-dekodowania", type=int, default=0,
                     help="ziarno losowania przy --dekodowanie probkowanie; czesc wyniku")
     ap.add_argument("--csv", default=None)
@@ -318,27 +383,29 @@ def main():
     idx = wczytaj_split(args.tryb_podzialu, args.seed)[args.na]
     S = df.secondary_structure.iloc[idx].tolist()
     Q = df.sequence.iloc[idx].tolist()
-    ET, ER = eterna(args.eterna_max)
 
     if args.baseline:
         nazwa, nazwa_kary, kara = "baseline losowy kanoniczny", "brak kary za sklad", None
         G = [losowa_kanoniczna(t) for t in S]
-        GE = [losowa_kanoniczna(t) for t in ET]
     else:
         nazwa = args.ckpt
         model, a_ck = wczytaj_model(args.ckpt, dev)
         nazwa_kary, kara = wlasna_kara(a_ck)
         G = generuj(model, S, dev, dekodowanie=args.dekodowanie, seed=args.seed_dekodowania)
-        GE = generuj(model, ET, dev, dekodowanie=args.dekodowanie, seed=args.seed_dekodowania)
 
     print(f"{nazwa}")
-    print(f"zbior {args.na.upper()}: {len(S)} struktur | Eterna <= {args.eterna_max} nt: {len(ET)}")
+    print(f"zbior {args.na.upper()}: {len(S)} struktur")
     print(f"dekodowanie: {args.dekodowanie}"
           + (f" (ziarno {args.seed_dekodowania})" if args.dekodowanie == "probkowanie" else ""))
     print(f"wlasna kara za sklad: {nazwa_kary}")
     print()
 
-    w = ocen(S, G, Q, args.na, kara=kara) + ocen(ET, GE, ER, "eterna", kara=kara)
+    # KONTROLA przed miarami: sekwencja niezgodna ze struktura uniewaznia caly wynik.
+    if sprawdz_zgodnosc(S, G, args.na):
+        raise SystemExit("kontrola zgodnosci nie przeszla — wynikow nie zapisuje")
+    print()
+
+    w = ocen(S, G, Q, args.na, kara=kara)
     d = pd.DataFrame(w)
     naglowek = (f"{'zbior':<10}{'dlugosc':>11}{'n':>6}{'ident_nt':>10}{'ident_par':>11}"
                 f"{'zbal_par':>10}{'zbal_zas':>10}{'dE/nt':>9}")

@@ -12,7 +12,8 @@ python run.py CE         # BEZ zadnych kar — ablacja trzech czlonow
 python run.py E1W        # jak E1, ale cross-entropia WAZONA odwrotnie do czestosci klas
 python run.py E2W        # jak E2, ale wazona
 python run.py CEW        # jak CE, ale wazona
-python -m src.przeglad   # przeglad 13 ustawien wag, na WALIDACJI (~38 min)
+python run.py E3         # KONTROLA: energia i parowania, ale BEZ kary za sklad
+python -m src.szum       # prog istotnosci: 7 konfiguracji x 3 ziarna (ok. 2h15)
 python -m src.test_youden # weryfikacja wskaznika Youdena na danych sztucznych
 ```
 
@@ -20,8 +21,28 @@ python -m src.test_youden # weryfikacja wskaznika Youdena na danych sztucznych
 
 ## Pytanie badawcze
 
-**Która konstrukcja kary za skład nukleotydowy działa lepiej.** E1 i E2 różnią się wyłącznie tym
-jednym członem straty; architektura, dane, podział, człon energetyczny i człon parowań są identyczne.
+**Zbudować model oparty na transformerze, który jak najlepiej przewiduje sekwencję nukleotydową dla
+zadanej struktury drugorzędowej.**
+
+Eksperymenty oznaczone literą `E` nie są celem samym w sobie — to **droga do tego modelu**. Każdy
+sprawdza jedną decyzję projektową, przy wszystkich pozostałych zamrożonych:
+
+```
+E1 kontra E2      konstrukcja kary za sklad: dwustronna czy jednostronna
+E3               czy energia i parowania w ogole pomagaja
+CE               czy jakiekolwiek kary poza cross-entropia pomagaja
+warianty W       czy wazenie klas w cross-entropii pomaga
+argmax / losowanie  sposob dekodowania
+```
+
+Wnioski z tych porównań są rozproszone po sekcjach niżej; **nie ma tu jednego werdyktu „ta
+konfiguracja jest najlepsza"**, bo żadna nie wygrywa na wszystkich miarach naraz, a różnice są
+w większości małe wobec progu istotności.
+
+### Dwie konstrukcje kary za skład
+
+E1 i E2 różnią się wyłącznie tym jednym członem straty; architektura, dane, podział, człon
+energetyczny i człon parowań są identyczne.
 
 **Obie kary liczą się PER SEKWENCJA**, potem uśredniamy po partii. Różnica leży wyłącznie
 w **kształcie** kary:
@@ -42,21 +63,26 @@ a my przyjmujemy tę samą konwencję dla pozostałych członów. Dzięki temu w
 jednej wagi, której nie da się uzasadnić jednym zdaniem.
 
 
-**Sekwencje powstają przez losowanie z rozkładu modelu** (`--dekodowanie probkowanie
---seed-dekodowania 0`), tak samo w walidacji i w ocenie końcowej. Uzasadnienie w sekcji „Dlaczego nie
-`argmax`". Ziarno jest częścią wyniku.
+**Sekwencje powstają przez `argmax`** — na każdej pozycji litera o największym
+prawdopodobieństwie, tak samo w walidacji i w ocenie końcowej. Generowanie jest przez to
+**deterministyczne**: nie trzeba ziarna, a wynik da się odtworzyć co do litery.
+
+Wymaga to jednak, żeby **kary też patrzyły na twarde wyjście** (`--kary-na-argmax`, estymator
+straight-through). Kary liczą się normalnie na rozkładach, a `argmax` patrzy tylko, kto jest na
+szczycie — nie o ile wygrywa. Bez tego model może mieć rozkład o poprawnym składzie i zdegenerowane
+wyjście: zmierzyliśmy taki o miękkim `G:C 0,622`, który po `argmax` dawał 0,984. Szczegóły
+w sekcji „Dekodowanie".
 
 ### Co liczy każda z nich
 
 ```
 E1   TV = ½ · Σ |udzial_modelu − cel|      osobno dla typow par i dla petli, sumowane
-     cel: petle A 0,324  C 0,208  G 0,217  U 0,252
-          pary  G:C 0,599   A:U 0,276   G:U 0,124
+     cel: petle A 0,311  C 0,203  G 0,205  U 0,280
+          pary  G:C 0,551   A:U 0,332   G:U 0,117
 
 E2   DistribLoss   = (x_A + x_C + x_G + x_U) / 4     x = max(prog − udzial, 0) / prog
                      progi A 0,15   C 0,30   G 0,30   U 0,15
      DistribLoss3  = (a + b + c) / 3                 dla typow par G:C, A:U, G:U
-     DistribLoss4  = max((a + b + c) − 1, 0)         eskalacja przy dwoch zawodzacych typach
                      progi G:C 0,50   A:U 0,20   G:U 0,05
 ```
 
@@ -66,15 +92,35 @@ E2   DistribLoss   = (x_A + x_C + x_G + x_U) / 4     x = max(prog − udzial, 0)
 a = max(0,50 − gc, 0) / 0,50      b = max(0,20 − au, 0) / 0,20      c = max(0,05 − gu, 0) / 0,05
 ```
 
-**Skąd cel w E1.** Zmierzony na trzech opublikowanych bazach struktur drugorzędowych RNA — bpRNA,
-RNAStrAlign i ArchiveII, razem `data/raw/rna_raw.parquet` — z **wykluczeniem 1455 struktur obecnych
-w naszej walidacji albo teście**, czyli n = 29 571. Odtworzenie: `python -m src.cele`.
+**Skąd cel w E1.** Zmierzony na **naszym własnym zbiorze** `data/working.parquet` — wszystkich
+3640 sekwencjach, czyli train + val + test razem (95 790 par, 147 092 pozycje niesparowane).
+Odtworzenie: `python -m src.cele`.
 
-Zmierzony udział par G:C wynosi 0,599 i pokrywa się z priorem 0,593 opublikowanym niezależnie przez
-Portelę (NEMO, bioRxiv 345587). Nie przepisujemy natomiast pozostałych liczb NEMO: ma on A:U 0,333
-i G:U 0,074, bo celowo tłumi pary chwiejne dla niezawodności zwijania, a pętle wypełnia w **93%
-adeniną**. To są decyzje projektowe, nie opis natury — jako cel popchnęłyby model wprost ku
-degeneracji poli-A, której ta kara ma zapobiegać.
+```
+train   G:C 0,600      <- 57% wszystkich par, wiec ciagnie srednia w gore
+val     G:C 0,484
+test    G:C 0,484
+-----------------
+razem   G:C 0,551      <- cel
+```
+
+Poprzednio cel pochodził z trzech baz zewnętrznych (bpRNA, RNAStrAlign, ArchiveII; n = 29 571) i
+wynosił `G:C 0,599`. Pokrywał się z naszym **treningiem** (0,600), ale nie z walidacją ani testem
+(obie 0,484), więc kara prowadziła model ku składowi złemu dla zbiorów, na których go oceniamy.
+
+⚠️ **Konsekwencja dla interpretacji.** Cel obejmuje teraz także test, więc zdanie „model trafił
+w skład testu" przestaje być dowodem, że nauczył się go z danych — część tej informacji dostał wprost
+w celu kary. Dotyczy to wyłącznie miar składu i wyłącznie modeli z karą E1; na trafność (`zbal_par`,
+Youden) nie ma wpływu, bo globalne proporcje nie mówią, która para stoi w którym miejscu.
+
+Dla porównania: pomiar na tych samych bazach zewnętrznych dawał `G:C 0,599`, co pokrywało się
+z priorem 0,593 opublikowanym niezależnie przez Portelę (NEMO, bioRxiv 345587). Nasz zbiór jest
+uboższy w G:C (0,551), bo obejmuje inny dobór rodzin.
+
+Nie przepisujemy natomiast pozostałych liczb NEMO: ma on A:U 0,333 i G:U 0,074, bo celowo tłumi pary
+chwiejne dla niezawodności zwijania, a pętle wypełnia w **93% adeniną**. To są decyzje projektowe,
+nie opis natury — jako cel popchnęłyby model wprost ku degeneracji poli-A, której ta kara ma
+zapobiegać.
 
 **Progi promotora to więzy projektowe, nie opis natury.** Ta sama konwencja jest domyślna w DesiRNA
 (*Nucleic Acids Research*, 2025): udziały A/C/G/U ograniczane od dołu, żeby projekt nie zdegenerował
@@ -86,20 +132,18 @@ naturę — sekwencje referencyjne same bywają poniżej progów. W logu widać 
 ## Przygotowanie danych
 
 ```
-data/raw/rna_raw.parquet          data/raw/eterna100.tsv
-31 026 sekwencji, 896 rodzin      71 zagadek <= 200 nt
-  |                                 |
-  |  src/cdhit.py  <= 200 nt,       |   BEZ cd-hit
-  |  cd-hit-est 4.8.1               |
-  |  -c 0.8 -n 5   -> 8 500         |
-  v                                 v
-data/cdhit/naturalne_cdhit.parquet  |
-  |                                 |
+data/raw/rna_raw.parquet
+31 026 sekwencji, 896 rodzin
+  |
+  |  src/cdhit.py     <= 200 nt, cd-hit-est 4.8.1, -c 0.8 -n 5   -> 8 500
+  v
+data/cdhit/naturalne_cdhit.parquet
+  |
   |  src/prepare.py   przewaga sparowanych (paired_fraction >= 0.5)
   |                   poprawnosc: >= 1 para, alfabet ACGU
   |                   wykonalne petle spinki (kazda >= 3 nt)
-  v                                 v
-data/working.parquet  3 640       data/eterna_working.parquet  39
+  v
+data/working.parquet  3 640
   |
   |  src/split.py     podzial 60/20/20 RODZINOWY
   v
@@ -117,10 +161,6 @@ Konsekwencja, dla której to usuwamy: ViennaRNA zwraca dla nich wartownik niesko
 `dE` wynosi zero **niezależnie od tego, co model wypisze**. Na zbiorze testowym zaniżało to
 raportowane `dE/nt` o 4%. Motyw spinki nie ucierpiał: zostaje 8557 z 8712 pętli (98,2%), a każda
 pozostała struktura ma co najmniej jedną.
-
-**Eterna omija cd-hit**, bo nie ma jej w treningu ani razu — odsianie jej przeciwko samej sobie nie
-zapobiegłoby żadnemu przeciekowi, a uszczupliłoby zbiór testowy (39 → 35) i uczyniło liczby
-nieporównywalnymi z cudzymi.
 
 **Podział rodzinowy:** każda rodzina Rfam trafia do dokładnie jednego podzbioru, więc test składa się
 z rodzin niewidzianych w treningu. [`src/split.py`](src/split.py) minimalizuje przy tym trzy rzeczy
@@ -173,11 +213,6 @@ pula naturalna <= 200 nt        28 678
   po przewadze sparowanych       3 699   (-4801)
   po kontroli poprawnosci        3 699   (-0)
   po kontroli petli spinki       3 640   (-59)
-
-Eterna <= 200 nt                    71
-  po przewadze sparowanych          39   (-32)
-  po kontroli poprawnosci           39   (-0)
-  po kontroli petli spinki          39   (-0)
 ```
 
 ## Rola każdego zbioru
@@ -326,145 +361,293 @@ Orientacja pary nie ma znaczenia: `A-U` i `U-A` to ten sam typ A:U.
 
 ---
 
+## Próg istotności
+
+Żadnej różnicy w tabelach niżej nie wolno czytać bez tej sekcji.
+
+Każda z siedmiu konfiguracji została wytrenowana **trzy razy**, przy zmienionym wyłącznie ziarnie
+inicjalizacji wag i kolejności partii (`--seed-modelu`). Podział danych pozostaje nietknięty — steruje
+nim osobna flaga `--seed`, a jej zmiana zmieniłaby zbiór walidacyjny i wyniki przestałyby być
+porównywalne. Pomiar jest **na walidacji**: to kwestia metodologiczna, nie wynik do raportu.
+Odtworzenie: `python -m src.szum`, wyniki w `experiments/analysis/szum_ziaren.csv`.
+
+```
+miara               odch. TEST   prog TEST   odch. walidacji   ile razy wiekszy na tescie
+zbal_par                 0,535       1,513             0,125             4,3
+zbal_zasady              0,384       1,086             0,208             1,8
+youden_par              0,0079      0,0223            0,0017             4,6
+youden_zasady           0,0053      0,0150            0,0028             1,9
+identycznosc_nt          0,294       0,830             0,263             1,1
+identycznosc_par         1,274       3,604             1,018             1,3
+dE/nt                   0,0299      0,0847            0,0267             1,1
+udzial G:C              0,0449      0,1269            0,0413             1,1
+guanina w petlach       0,0323      0,0914            0,0300             1,1
+```
+
+Próg dla różnicy jest większy niż rozrzut pojedynczego przebiegu, bo różnica zbiera szum z obu
+modeli: `2 · s · √2`. Odchylenie liczymy **w obrębie konfiguracji**, a dopiero potem uśredniamy po
+konfiguracjach — policzone na wszystkich przebiegach naraz zmierzyłoby różnice *między*
+konfiguracjami, czyli dokładnie to, co ma być testowane.
+
+### Szum na teście jest cztery razy większy niż na walidacji
+
+Dotyczy to **wyłącznie miar, po których wybieramy epokę** — `zbal_par` i wskaźnik Youdena dla par.
+Pozostałe miary mają na obu zbiorach ten sam rozrzut.
+
+Przyczyna jest systematyczna: epokę wybieramy po `zbal_par` **na walidacji**, więc wynik walidacyjny
+to maksimum z 60 pomiarów, a maksimum z serii szumiących liczb jest z natury stabilniejsze niż
+pojedynczy pomiar. Test nie bierze udziału w żadnej selekcji i pokazuje prawdziwą zmienność
+procedury.
+
+**Wniosek metodologiczny: progu nie wolno mierzyć na zbiorze, na którym dokonuje się selekcji** —
+zaniża go tam kilkukrotnie. Pierwsza wersja tego pomiaru była liczona na walidacji i dawała próg
+`0,35` dla `zbal_par` zamiast `1,51`; kilka różnic wyglądało wtedy na istotne, choć nie są.
+
+Porównania raportujemy **parowane**: różnicę liczymy w obrębie ziarna, bo obie konfiguracje przeszły
+przez te same trzy ziarna. To znosi szum wspólny obu przebiegom i jest mocniejsze niż zestawianie
+samych średnich. Podajemy przy tym zgodność znaku — różnica wychodząca w tę samą stronę na wszystkich
+trzech ziarnach coś znaczy nawet wtedy, gdy jest mała.
+
+⚠️ **Trzy ziarna to mało**; sam próg jest obarczony sporą niepewnością. Sześć ziaren zwęziłoby go
+o około 30%, kosztem kolejnych dwóch godzin.
+
+---
+
 ## Wyniki
 
 Wszystko na zbiorze testowym, kubełek `<= 200 nt` (728 struktur), podział rodzinowy. Sześć
-przebiegów w **identycznych warunkach** — te same dane, wagi 1,0, próbkowanie z ziarnem 0, pełne
-60 epok, epoka wybrana po `zbal_par` na walidacji. Różnią się wyłącznie karą za skład i tym, czy
-cross-entropia jest ważona.
+przebiegów w **identycznych warunkach** — te same dane, wagi 1,0, dekodowanie `argmax` ze
+straight-through, pełne 60 epok, epoka wybrana po `zbal_par` na walidacji. Różnią się wyłącznie
+karą za skład i tym, czy cross-entropia jest ważona.
 
-| model | ident_nt | ident_par | zbal_par | zbal_zas | dE/nt | Youden |
-|---|---|---|---|---|---|---|
-| baseline losowy | 25,95% | 33,70% | 33,46% | 25,03% | +0,1273 | +0,0028 |
-| E1 kara TV | 27,37% | 42,61% | 34,49% | 25,60% | −0,0571 | +0,0170 |
-| E2 kara promotora | 27,40% | **43,16%** | 34,38% | 25,98% | −0,0869 | +0,0152 |
-| CE bez kar | **27,76%** | 41,69% | **35,00%** | **26,27%** | +0,0017 | **+0,0256** |
-| E1W TV + ważona CE | 26,71% | 41,18% | 34,33% | 25,43% | −0,0293 | +0,0135 |
-| E2W progi + ważona CE | 26,81% | 42,11% | 34,66% | 25,89% | −0,0439 | +0,0179 |
-| CEW ważona CE | 26,30% | 35,78% | 34,46% | 25,65% | +0,1406 | +0,0152 |
-| **poziom losowy** | | | **33,33%** | **25,00%** | | **0** |
+| model | ident_nt | ident_par | zbal_par | zbal_zas | dE/nt | Youden | G:C na wyjściu |
+|---|---|---|---|---|---|---|---|
+| baseline losowy | 25,95% | 33,70% | 33,46% | 25,03% | +0,1273 | +0,0028 | 0,336 |
+| E1 kara TV | 28,79% | **44,18%** | 34,43% | 26,49% | −0,0977 | +0,0169 | 0,654 |
+| E2 kara promotora | 28,76% | 43,57% | 34,43% | 26,20% | −0,0940 | +0,0161 | 0,653 |
+| CE bez kar | **29,88%** | 43,98% | 35,22% | **27,33%** | −0,0563 | +0,0287 | 0,592 |
+| E1W TV + ważona CE | 28,11% | 40,68% | 35,30% | 26,42% | +0,0094 | +0,0283 | **0,488** |
+| E2W progi + ważona CE | 27,82% | 38,72% | 35,41% | 26,67% | +0,0246 | +0,0292 | **0,488** |
+| CEW ważona CE | 27,62% | 38,00% | **35,70%** | 27,26% | +0,1212 | **+0,0361** | 0,333 |
+| **poziom losowy** | | | **33,33%** | **25,00%** | | **0** | |
+| **REFERENCJA** | | | | | | | **0,484** |
+| **próg istotności** | 0,83 | 3,60 | **1,51** | 1,09 | 0,085 | **0,022** | 0,127 |
 
-Wykresy: [notebooks/02_wyniki.ipynb](notebooks/02_wyniki.ipynb) — zestaw I (bez ważenia), zestaw II
-(z ważeniem), zestaw III (pary), zestaw IV (Youden na trzech podzbiorach).
+Zapisane epoki: 45, 54, 41, 30, 29, 29 — wszystkie późne, żadna nie ostatnia.
 
-### Modele biją poziom losowy, ale między sobą są nierozróżnialne
+⚠️ **Ostatni wiersz zmienia czytanie całej tabeli.** Pogrubienia oznaczają najwyższą wartość
+w kolumnie, ale na `zbal_par` i na wskaźniku Youdena **cały rozstrzał między modelami mieści się
+w progu** — 34,43% i 35,70% to ten sam wynik w granicach zmienności treningu. Różnice
+przekraczające próg są tylko na identyczności nukleotydowej i na składzie wyjścia. Szczegóły
+w sekcji „Rozkład kar na składniki" niżej.
 
-`zbal_par` mieści się w przedziale 34,33–35,00% przy poziomie losowym 33,33%. Wszystkie sześć
-przekracza go o 1,0–1,7 pp i potwierdzają to trzy niezależne miary:
+Wykresy: [notebooks/02_wyniki.ipynb](notebooks/02_wyniki.ipynb).
 
-```
-                    zbal_par     Youden    nadwyzka identycznosci nad samym skladem
-baseline             33,46%      +0,003              +0,25 pp
-modele            34,3-35,0%  +0,014..+0,026      +0,98..+1,86 pp
-```
+### Argmax ze straight-through wypadł lepiej niż próbkowanie
 
-Ostatnia kolumna to identyczność ponad to, co dostałby predyktor o **tym samym składzie wyjścia**,
-losujący bez patrzenia na pozycję (`Σ udzial_k · czestosc_k`). Baseline ma tam 0,25 pp, czyli zero
-w granicach szumu; modele 1–1,9 pp.
-
-**Ale różnice MIĘDZY modelami są w granicach szumu.** Rozstęp na `zbal_par` wynosi 0,67 pp, a
-zmierzony rozrzut między ziarnami inicjalizacji to ±0,26 pp (12 przebiegów,
-`experiments/analysis/szum_wagi_klas.csv`) — różnica dwóch niezależnych przebiegów ma więc
-odchylenie 0,37 pp. Na tej mierze **nie da się uszeregować sześciu konfiguracji.**
-
-### Identyczność mierzy skład, nie wiedzę o pozycji
-
-Dla predyktora przypisującego klasy niezależnie od pozycji identyczność par wynosi dokładnie
-`Σ udzial_k · czestosc_k`. Podstawiając sam skład wyjścia, bez żadnej wiedzy o modelu:
+Wcześniejsza wersja tych eksperymentów dekodowała przez losowanie z rozkładu. Przejście na `argmax`
+z karami liczonymi na twardym wyjściu poprawiło każdy model na każdej mierze:
 
 ```
-model       zmierzona   przewidziana z samego skladu   nadwyzka
-E1             42,61%                        41,42%     +1,19 pp
-E2             43,16%                        42,04%     +1,12 pp
-CE             41,69%                        39,84%     +1,86 pp
-E1W            41,18%                        40,19%     +0,98 pp
-E2W            42,11%                        40,98%     +1,13 pp
-CEW            35,78%                        34,73%     +1,05 pp
+                 probkowanie     argmax    roznica     prog
+CE   ident_nt       27,76%       29,88%     +2,12      0,83   <- powyzej progu
+CE   zbal_par       35,00%       35,22%     +0,22      1,51
+CE   Youden        +0,0256      +0,0287    +0,0031    0,0223
+CEW  Youden        +0,0152      +0,0361    +0,0209    0,0223
 ```
 
-Zgodność do 1–2 pp. **Przewaga E2 nad E1 na `identycznosc_par` jest w całości skutkiem większego
-udziału G:C** (0,645 wobec 0,595), a nie lepszej wiedzy o tym, gdzie która para stoi. Dlatego ta
-miara nie rozstrzyga u nas niczego, mimo że jest najbardziej intuicyjna.
+⚠️ Powyżej progu jest tylko **identyczność nukleotydowa**. Pozostałe różnice idą w dobrą stronę, ale
+mieszczą się w zmienności przebiegów — a ponieważ pochodzą z pojedynczych przebiegów w dwóch różnych
+reżimach, nie są nawet porównaniem parowanym.
 
-### Skład: kara za skład go POGARSZA
+Główny argument za `argmax` jest zresztą inny i niezależny od tych liczb: **determinizm**. Nie trzeba
+ziarna, a wynik da się odtworzyć co do litery. Do tego dochodzi zniknięcie degeneracji, opisane niżej
+— i to jest efekt ogromny, nie subtelny.
 
-Miara neutralna — odległość TV od składu **referencyjnego**:
+### Degeneracja zniknęła
 
-```
-model                        G:C     A:U     G:U   |     A      C      G      U   | TVpary TVpetle RAZEM
-E1   kara TV               0,595   0,299   0,106   | 0,326  0,208  0,209  0,258   |  0,111  0,020  0,131
-E2   kara promotora        0,645   0,251   0,104   | 0,295  0,249  0,213  0,243   |  0,161  0,045  0,207
-CE   bez kar               0,505   0,363   0,132   | 0,304  0,231  0,173  0,292   |  0,021  0,038  0,059
-E1W  TV + wazona CE        0,552   0,309   0,139   | 0,321  0,220  0,209  0,250   |  0,068  0,024  0,092
-E2W  progi + wazona CE     0,577   0,306   0,117   | 0,233  0,314  0,217  0,236   |  0,093  0,114  0,207
-CEW  wazona CE             0,297   0,449   0,254   | 0,234  0,306  0,193  0,267   |  0,187  0,094  0,281
-baseline                   0,336   0,334   0,330   | 0,252  0,246  0,250  0,251   |  0,185  0,080  0,264
-REFERENCJA                 0,484   0,371   0,145   | 0,309  0,212  0,205  0,274   |
-```
-
-Tu różnice są kilkukrotne, więc **wykraczają poza szum** — wynik:
-
-**Model bez żadnej kary za skład ma skład najbliższy naturze** (0,059), a na samych parach
-praktycznie trafia w referencję (0,021 przy `G:C 0,505` wobec 0,484). Uczy się składu z danych
-i uogólnia go na nowe rodziny — mimo że trening ma `G:C 0,600`.
-
-**Kara ciągnie go z powrotem od natury.** E1 dochodzi do 0,595, E2 do 0,645, bo cel kary wynosi
-`G:C 0,599` — zmierzony na bazach zewnętrznych, zgodny z naszym **treningiem**, ale o dwanaście
-punktów wyższy niż zbiór testowy. Kara sumiennie prowadzi model do celu, który dla rodzin testowych
-jest zły, i tym samym **wzmacnia przesunięcie rozkładu** opisane wyżej, zamiast je korygować.
-
-Nie da się tego naprawić strojeniem: cel dopasowany do treningu zawsze będzie za wysoki dla testu,
-a dopasowanie go do testu byłoby przeciekiem.
-
-**E1 wypada lepiej niż E2** (0,131 wobec 0,207), i to jest odpowiedź na pytanie badawcze. Kara
-dwustronna karze nadmiar, kara promotora ma próg dolny `G:C >= 0,50`, więc nadmiaru nie widzi.
-
-### Ważenie klas: pomaga tam, gdzie jest kara; szkodzi tam, gdzie jej nie ma
-
-Zestawienie parami, w których jedyną różnicą jest ważona cross-entropia:
+To był główny powód, dla którego wcześniej porzuciliśmy `argmax`:
 
 ```
-para          zbal_par        TV pary            TV razem
-E1  -> E1W   34,49 -> 34,33   0,111 -> 0,068     0,131 -> 0,092
-E2  -> E2W   34,38 -> 34,66   0,161 -> 0,093     0,207 -> 0,207
-CE  -> CEW   35,00 -> 34,46   0,021 -> 0,187     0,059 -> 0,281
+                          G:C na wyjsciu   adenina w petlach
+argmax BEZ straight-through     0,984            0,96
+argmax ZE straight-through      0,488-0,654      0,15-0,44
+REFERENCJA                      0,484            0,309
 ```
 
-Na trafności zmiany wynoszą −0,16, +0,28 i −0,54 pp — bez zgodnego znaku i w granicach szumu.
-
-Na składzie działa mechanizm, który da się opisać jednym zdaniem: **ważenie przesuwa wyjście ku
-klasom rzadkim, czyli dokładnie przeciwnie niż kara za skład.** Tam, gdzie kara przestrzeliła w górę,
-ważenie ją równoważy (TV par 0,111 → 0,068 i 0,161 → 0,093). Tam, gdzie kary nie ma, nie ma czego
-równoważyć i samo ważenie przestrzeliwuje w drugą stronę — CEW schodzi do `G:C 0,297` przy
-referencji 0,484, czyli dalej od natury niż losowy baseline.
-
-### Youden na treningu kontra rodziny nowe: to nie jest problem straty
-
-Ten sam wskaźnik policzony na podzbiorach. Podział jest rodzinowy, więc walidacja i test składają się
-z rodzin **nieobecnych w treningu**:
+Kara widzi teraz twarde wyjście, więc ma co karać. Widać to w przebiegu treningu `E1`:
 
 ```
-model     J train     J val    J test   spadek
-E1        +0,3222   +0,0202   +0,0170     19x
-E2        +0,3279   +0,0158   +0,0152     22x
-CE        +0,3964   +0,0284   +0,0256     16x
-E1W       +0,3589   +0,0244   +0,0135     27x
-E2W       +0,4060   +0,0327   +0,0179     23x
-CEW       +0,3684   +0,0363   +0,0152     24x
+epoka  1    sklad_pary 0,2875   sklad_petle 0,3795
+epoka  3    sklad_pary 0,1816   sklad_petle 0,1067
+epoka 60    sklad_pary 0,1381   sklad_petle 0,0652
 ```
 
-`J` czyta się wprost jako ułamek pozycji, na których model zna odpowiedź. **Na rodzinach widzianych
-jest to 32–41%. Na nowych — 1,4–3,6%.** Spadek 16–27-krotny, identyczny we wszystkich sześciu
-konfiguracjach, więc nie jest właściwością żadnej kary ani ważenia.
+Kara startuje wysoko, bo na starcie wyjście faktycznie jest zdegenerowane, i systematycznie spada.
 
+### Rozkład kar na składniki — kontrola E3
+
+`E1` ma trzy kary i wypada gorzej niż `CE`, które nie ma żadnej:
 
 ```
-Zastrzeżenie: wynik na treningu jest częściowo zapamiętaniem konkretnych sekwencji, więc **nie jest sufitem osiągalnym na nowych rodzinach** Prawdziwy sufit jest zresztą poniżej 1,0, bo odwrotne zwijanie jest jeden-do-wielu.
+             zbal_par   Youden
+E1  z karami  34,43%   +0,0169
+CE  bez kar   35,22%   +0,0287
 ```
 
-Konsekwencja praktyczna: **wąskim gardłem nie jest funkcja straty, tylko skład zbioru treningowego**
-(92% to tRNA i 5S). Żadna waga ani nowy człon straty tego nie ruszy — waga steruje siłą, a nie
-rodzajem informacji, a informacji o nowych rodzinach w treningu po prostu nie ma.
+Te dwa przebiegi różnią się jednak **trzema rzeczami naraz**, więc z samego ich zestawienia nie
+wynika, która odpowiada za różnicę. Kontrola `E3` rozcina to na dwa kroki, z których każdy zmienia
+dokładnie jedną rzecz:
+
+```
+E1 -> E3    zdejmujemy KARE ZA SKLAD          (zostaja energia i parowania)
+E3 -> CE    zdejmujemy ENERGIE i PAROWANIA    (nie zostaje nic)
+```
+
+| model | kara za skład | energia + parowania | zbal_par | Youden | ident_nt | dE/nt | G:C |
+|---|---|---|---|---|---|---|---|
+| E1 | tak | tak | 34,43% | +0,0169 | 28,79% | −0,0977 | 0,654 |
+| E3 | — | tak | 34,66% | +0,0183 | 29,44% | −0,0997 | 0,647 |
+| CE | — | — | 35,22% | +0,0287 | 29,88% | −0,0563 | 0,592 |
+
+Porównania parowane na teście, po trzy ziarna na konfigurację (`python -m src.szum`):
+
+```
+krok                        zbal_par  youden_par  ident_nt      G:C  G w petlach
+E1 -> E3   bez kary            +0,74     +0,0113    +1,14     +0,062      -0,039
+                             w szumie   w szumie   REALNA    kierunek    kierunek
+E3 -> CE   bez energii/parow.  +0,27     +0,0062    -0,08     -0,124      -0,015
+                             kierunek   kierunek  w szumie   kierunek    w szumie
+                       prog     1,513     0,0223     0,830     0,127       0,091
+```
+
+**Na trafności zbalansowanej i na wskaźniku Youdena żaden z tych kroków nie przekracza progu.**
+Różnice idą wprawdzie w stronę „bez kar jest lepiej", ale przy rzeczywistym rozrzucie przebiegów nie
+da się tego odróżnić od przypadku.
+
+Jedyna różnica istotna to **identyczność nukleotydowa: zdjęcie kary za skład podnosi ją o 1,14
+punktu**, zgodnie na wszystkich trzech ziarnach. Kara za skład kosztuje więc identyczność — i to
+jest jedyny koszt, jaki udało się zmierzyć.
+
+⚠️ **Dwa sprostowania wobec wcześniejszych wersji tego dokumentu.**
+
+Pierwsze: figurowało tu zdanie „kara za skład szkodzi trafności", oparte na zestawieniu `E1` z `CE`,
+które różnią się trzema rzeczami naraz. Kontrola `E3` pokazała, że efektu nie da się przypisać temu
+członowi.
+
+Drugie: po kontroli `E3` napisaliśmy, że za spadek trafności odpowiadają energia i parowania. Było to
+oparte na progu zmierzonym na **walidacji** (0,47). Przy progu zmierzonym na teście (1,51) ten krok
+też jest w szumie. **Na trafności nie mamy istotnego efektu żadnego z członów straty.**
+
+### Ważona cross-entropia zmienia skład, nie trafność
+
+```
+para          zbal_par   youden_par   ident_nt      G:C   G w petlach
+E1 -> E1W       +0,42       +0,0050      -0,71    -0,135      -0,006
+E2 -> E2W       +0,67       +0,0083      -0,83    -0,157      +0,127
+CE -> CEW       +0,19       +0,0016      -2,18    -0,292      +0,076
+       prog      1,513       0,0223       0,830     0,127       0,091
+```
+
+Ważenie **niezawodnie obniża identyczność i udział G:C** — obie te zmiany przekraczają próg w dwóch
+albo trzech parach, przy zgodnym kierunku. `CEW` jako jedyny model nie nadprodukuje par G:C (0,333
+przy referencji 0,484 — tym razem produkuje ich za mało).
+
+**Wzrost trafności zbalansowanej nie przeżył pomiaru na teście.** Kierunek jest dodatni we wszystkich
+trzech parach, ale największa różnica (`+0,67`) to niecała połowa progu. Wcześniejsza wersja tego
+dokumentu podawała ten efekt jako najmocniejszy w całym zestawie — przy progu z walidacji tak
+wyglądał.
+
+### E1 i E2 są nierozróżnialne
+
+```
+miara              roznica     prog
+zbal_par            -0,09     1,513
+youden_par        -0,0001    0,0223
+identycznosc_nt     +0,13     0,830
+G:C                +0,034     0,127
+```
+
+Żadna różnica nie zbliża się do progu, mimo że obie kary są zbudowane zupełnie inaczej — nasza
+dwustronna wobec jednostronnej promotora. **Konstrukcja kary za skład nie ma mierzalnego wpływu na
+nic**, co raportujemy.
+
+### Podsumowanie: różnice między konfiguracjami są w większości szumem
+
+Zestawienie wszystkiego, co przekroczyło próg na teście:
+
+```
+zmiana                                     co przekroczylo prog
+zdjecie kary za sklad (E1 -> E3)           identycznosc +1,14
+zdjecie wszystkich kar  (E1 -> CE)         identycznosc +1,06
+wazenie klas w CE                          identycznosc -0,7 do -2,2
+                                           udzial G:C   -0,14 do -0,29
+                                           guanina w petlach +0,13 (E2W)
+```
+
+**Na trafności zbalansowanej i na wskaźniku Youdena — czyli na miarach, które miały rozstrzygać —
+nie przeżyła ani jedna różnica.** Wszystkie człony straty, obie konstrukcje kary i ważenie klas dają
+wyniki nieodróżnialne od siebie w granicach zmienności samego treningu.
+
+To jest główny wynik negatywny pracy i jest zgodny z diagnozą z sekcji o podziale rodzinowym: skoro
+model prawie nie ma wiedzy pozycyjnej na nowych rodzinach, nie ma czego poprawiać funkcją straty.
+Człony straty zmieniają **skład** wyjścia — i tu ich efekt jest realny i mierzalny — ale nie
+zmieniają tego, czy model wie, co postawić na konkretnej pozycji.
+
+### Skład wyjścia
+
+```
+model            G:C     A:U     G:U   |       A       C       G       U
+E1             0,654   0,272   0,074   |   0,388   0,212   0,141   0,260
+E2             0,653   0,260   0,087   |   0,358   0,223   0,117   0,302
+CE             0,592   0,319   0,089   |   0,444   0,148   0,069   0,339
+E1W            0,488   0,336   0,176   |   0,277   0,278   0,146   0,299
+E2W            0,488   0,263   0,248   |   0,237   0,441   0,159   0,163
+CEW            0,333   0,422   0,244   |   0,146   0,478   0,159   0,217
+baseline       0,336   0,334   0,330   |   0,252   0,246   0,250   0,251
+REFERENCJA     0,484   0,371   0,145   |   0,309   0,212   0,205   0,274
+```
+
+**`E1W` i `E2W` trafiają w pary niemal idealnie** — obie 0,488 przy referencji 0,484. To ważenie
+cross-entropii, nie kara, odpowiada za tę zgodność: `E1` bez ważenia daje 0,654.
+
+**E1 i E2 wypadają teraz niemal identycznie** — 0,654 wobec 0,653 na parach, `zbal_par` obie 34,43%,
+Youden +0,0169 wobec +0,0161. Po przejściu na `argmax` ze straight-through różnica między dwiema
+konstrukcjami kary **zniknęła**; wcześniej, przy próbkowaniu, E1 wypadał wyraźnie lepiej. Pomiar
+szumu to potwierdza: żadna z tych różnic nie przekracza progu — patrz „E1 i E2 są nierozróżnialne"
+wyżej.
+
+Konsekwencja praktyczna: przy tym dekodowaniu **kształt kary za skład przestaje mieć znaczenie**. Obie prowadzą do tego samego nadmiaru G:C (0,65 przy referencji 0,484) i do tej samej
+trafności.
+
+⚠️ **Guanina jest teraz największym problemem, we wszystkich modelach.** Przy referencji 0,205:
+
+```
+E1 0,141    E2 0,117    CE 0,069    E1W 0,146    E2W 0,159    CEW 0,159
+```
+
+`CE` ma jej trzykrotnie za mało. To pogorszyło się wraz z przejściem na `argmax` — guanina rzadko
+wygrywa w pętlach, a przy losowaniu dostawała swoją część proporcjonalnie do prawdopodobieństwa.
+
+### Kara promotora ma szeroką strefę bezkarną
+
+Progi par sumują się do `0,50 + 0,20 + 0,05 = 0,75`, więc udział G:C może rosnąć aż do 0,75, zanim
+A:U spadnie poniżej swojego progu. Policzone wprost ze wzoru (`scratchpad/kiedy_gryzie.py`):
+
+```
+G:C na wyjsciu   0,484   0,550   0,645   0,700   0,750   0,850
+kara za pary     0,011   0,000   0,000   0,000   0,034   0,206
+                         ^^^^^^^^^^^^^^^^^^^^^^ tu kara jest ZEREM
+```
+
+Nasze `E2` produkuje 0,653 — siedzi w środku tej strefy i **płaci zero** za pary. Zwiększanie wagi tego nie
+zmieni, bo `waga × 0 = 0`. Żeby ciągnąć model w dół od nadmiaru G:C, kara musiałaby mieć górny próg
+albo być dwustronna — to drugie jest właśnie wariantem E1.
+
+Kara za zasady też nie pomaga w tę stronę: progi `C >= 0,30` i `G >= 0,30` żądają 60% zawartości GC,
+a prawdziwe sekwencje mają C 0,229 i G 0,268. **97% sekwencji testowych łamie co najmniej jeden
+próg**, więc kara jest stale aktywna i stale popycha C i G w górę — a każda para G:C wnosi jedno G
+i jedno C.
 
 ### Dlaczego nie `argmax`
 
@@ -499,24 +682,15 @@ składowi rozkładu. Zgodność jest dokładna do trzeciego miejsca po przecinku
 `G:C 0,622`, a na wygenerowanych sekwencjach 0,625. Wartość kary raportowana w treningu opisuje więc
 to samo, co widać na gotowej sekwencji.
 
-### Przegląd wag: optymalnego ustawienia nie ma
+### Wagi: wszystkie 1,0, bez dobierania pod wynik
 
-`python -m src.przeglad` — 13 ustawień wag, każde trenowane osobno, wszystko **na walidacji**.
+Wcześniejszy przegląd 13 ustawień wag (`python -m src.przeglad`, na walidacji) dał wynik **negatywny**:
+różnice między konfiguracjami były rzędu szumu, a waga parowań nie robiła nic w całym zakresie
+0 → 12. To była przesłanka, przez którą zdjęliśmy odziedziczoną wagę 6,0.
 
-```
-rozstep miedzy 13 ustawieniami:                   0,93 pp
-rozrzut miedzy ziarnami dla tej samej konfiguracji: ±0,26 pp
-najwyzej wypada:                                  "nic (sama CE)", 34,51%
-```
-
-**Różnice między konfiguracjami są rzędu szumu**, więc żadnego ustawienia nie da się uznać za lepsze.
-Waga parowań przebiega cały zakres 0 → 1 → 3 → 6 → 12 i nie wynika z tego nic — to była przesłanka,
-przez którą zdjęliśmy odziedziczoną wagę 6,0.
-
-Negatywny wynik przeglądu zwalnia nas z dobierania: wszystkie wagi stoją na 1,0 i da się to
-uzasadnić jednym zdaniem, zamiast bronić liczby dopasowanej pod wynik.
-
-Pełny wynik: `experiments/analysis/przeglad_wag.csv`.
+⚠️ Ten przegląd był liczony w poprzednim reżimie (dekodowanie przez losowanie) i **nie został
+powtórzony po przejściu na `argmax`**. Jego wyniku nie cytujemy więc liczbowo — służy tylko jako
+uzasadnienie, dlaczego wszystkie wagi stoją na 1,0 i dlaczego żadna nie jest dopasowana pod wynik.
 
 ---
 
@@ -524,11 +698,14 @@ Kary w tabelach liczone są na **wygenerowanych sekwencjach**.
 
 ## Znane ograniczenia
 
-**Cel składu par jest za wysoki dla zbioru testowego.** Mierzymy `G:C 0,599` na bazach zewnętrznych,
-a test ma 0,484 — kara prowadzi więc model do celu przesuniętego o dwanaście punktów. To nie jest
-wada implementacji, tylko konsekwencja podziału rodzinowego: cel pokrywa się ze składem treningu
-(0,600), a test zawiera inne rodziny. Dopasowanie celu do testu byłoby przeciekiem, więc zostawiamy
-go takim, jaki jest, i raportujemy skutek.
+**Cel składu par jest wyższy niż skład zbioru testowego.** Cel wynosi `G:C 0,551` (średnia z całej
+puli), a test ma 0,484 — kara prowadzi więc model do wartości przesuniętej o niecałe siedem punktów.
+To nie jest wada implementacji, tylko konsekwencja podziału rodzinowego: trening ma 0,600 i stanowi
+57% wszystkich par, więc ciągnie średnią w górę. Poprzednia wersja celu, mierzona na bazach
+zewnętrznych, wynosiła 0,599 i przesunięcie było dwa razy większe.
+
+**Kara za skład i tak nie steruje udziałem G:C** — pokazuje to kontrola `E3` wyżej — więc to
+ograniczenie jest w praktyce łagodniejsze, niż na to wygląda.
 
 **Kara E1 nie schodzi do zera i nie powinna.** Prawdziwe sekwencje treningowe mają TV średnio 0,249
 (mediana 0,228), bo pojedyncza cząsteczka nie ma składu równego średniej populacyjnej. Kara dwustronna

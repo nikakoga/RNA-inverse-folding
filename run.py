@@ -25,8 +25,7 @@ CK = {
     "cew": "checkpoints/cew_wazona_ce.pt",     # jak CE, ale CE wazona odwrotnie do czestosci klas
     "e1w": "checkpoints/e1w_wazona_ce.pt",
     "e2w": "checkpoints/e2w_wazona_ce.pt",     # jak E2, ale CE wazona
-    "e3":  "checkpoints/e3_sklad_petle.pt",    # kara TV TYLKO na petle
-    "e3w": "checkpoints/e3w_sklad_petle.pt",   # to samo, ale CE wazona
+    "e3":  "checkpoints/e3_bez_skladu.pt",     # energia + parowania, BEZ kary za sklad
 }
 SPLIT = ["--tryb-podzialu", "rodzinowy"]
 # KRYTERIUM WYBORU EPOKI, jawnie i TAKIE SAMO we wszystkich eksperymentach.
@@ -51,13 +50,21 @@ WYBOR = ["--wybor", "zbal_par"]
 # Przy cierpliwosci 60 kazdy przebieg widzi TYLE SAMO epok i konczy z rozstrojonym krokiem uczenia
 # (cosine schodzi do zera dopiero w ostatniej epoce). Wybor epoki dalej nalezy do `--wybor`.
 CIERPLIWOSC = ["--cierpliwosc", "60"]
-# DEKODOWANIE. Rozklady modelu maja poprawny sklad, ale sa plaskie: srednia pewnosc 0,34 przy
-# 0,25 dla jednostajnego, a przewaga zwyciezcy nad drugim to 0,086. `argmax` zamienia ten drobny,
-# ale staly przechyl w te sama litere na kazdej pozycji. Probkowanie odtwarza rozklad, bo
-# oczekiwany sklad wylosowanej sekwencji ROWNA SIE skladowi rozkladu. Architektura bez zmian:
-# nadal jeden przebieg enkodera, a para (i,j) nadal jest JEDNA decyzja z szesciu klas.
-# ZIARNO jest czescia wyniku — bez niego nic nie da sie odtworzyc.
-DEKOD = ["--dekodowanie", "probkowanie", "--seed-dekodowania", "0"]
+# DEKODOWANIE: ARGMAX, czyli na kazdej pozycji litera o najwiekszym prawdopodobienstwie.
+# Zaleta wobec probkowania: generowanie jest DETERMINISTYCZNE, nie trzeba ziarna i wynik da sie
+# odtworzyc co do litery.
+#
+# ARGMAX WYMAGA `--kary-na-argmax`, i to nie jest opcjonalne. Kary licza sie normalnie na
+# rozkladach, a argmax patrzy tylko, kto jest na szczycie — nie o ile wygrywa. Zmierzylismy model
+# o miekkim skladzie `G:C 0,622`, ktory po argmaxie dawal 0,984: kara byla spelniona, wyjscie
+# zdegenerowane. Straight-through pokazuje karom twarde wyjscie, wiec maja co karac.
+#
+# Architektura sie przy tym nie zmienia: nadal jeden przebieg enkodera, a para (i,j) nadal jest
+# JEDNA decyzja z szesciu klas kanonicznych.
+DEKOD = ["--dekodowanie", "argmax", "--kary-na-argmax"]
+# src/evaluate.py nie zna flagi `--kary-na-argmax` (nie liczy strat), wiec do oceny
+# przekazujemy samo dekodowanie. Musi byc TAKIE SAMO jak w walidacji.
+DEKOD_OCENA = ["--dekodowanie", "argmax"]
 
 EKSPERYMENTY: list[tuple[str, str, list]] = [
 
@@ -83,7 +90,7 @@ EKSPERYMENTY: list[tuple[str, str, list]] = [
                      "--w-energia", "1.0", "--w-parowania", "1.0", "--w-sklad", "1.0",
                      "--out", CK["e1"]]),
         # Dekodowanie w ocenie MUSI byc takie samo jak w walidacji.
-        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["e1"], *SPLIT, *DEKOD,
+        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["e1"], *SPLIT, *DEKOD_OCENA,
                         "--na", "test", "--csv", "e1_test.csv"]),
         ("baseline", ["-m", "src.evaluate", "--baseline", *SPLIT,
                       "--na", "test", "--csv", "baseline_test.csv"]),
@@ -93,7 +100,7 @@ EKSPERYMENTY: list[tuple[str, str, list]] = [
            "Jedyna roznica wobec E1 to KONSTRUKCJA tej kary", [
         #   E1  --w-sklad 1          odleglosc TV od celu; DWUSTRONNA — karze takze nadmiar
         #   E2  --w-sklad-zasad 1    progi DOLNE udzialow A/C/G/U
-        #       --w-sklad-par   1    progi DOLNE udzialow typow par + eskalacja DistribLoss4
+        #       --w-sklad-par   1    progi DOLNE udzialow typow par (DistribLoss3)
         #                            JEDNOSTRONNA — nadmiar bezkarny
         #
         # Obie liczone PER SEKWENCJA, wszystkie komponenty z waga 1,0, wiec jedyna zmienna
@@ -102,7 +109,7 @@ EKSPERYMENTY: list[tuple[str, str, list]] = [
                      "--w-energia", "1.0", "--w-parowania", "1.0",
                      "--w-sklad-zasad", "1.0", "--w-sklad-par", "1.0",
                      "--out", CK["e2"]]),
-        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["e2"], *SPLIT, *DEKOD,
+        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["e2"], *SPLIT, *DEKOD_OCENA,
                         "--na", "test", "--csv", "e2_test.csv"]),
     ]),
 
@@ -125,7 +132,7 @@ EKSPERYMENTY: list[tuple[str, str, list]] = [
         # Wszystko poza wagami kar identyczne jak w E1, wiec kary sa JEDYNA zmienna.
         ("trening", ["-m", "src.train", "--epoki", "60", *SPLIT, *WYBOR, *DEKOD, *CIERPLIWOSC,
                      "--out", CK["ce"]]),
-        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["ce"], *SPLIT, *DEKOD,
+        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["ce"], *SPLIT, *DEKOD_OCENA,
                         "--na", "test", "--csv", "ce_test.csv"]),
     ]),
 
@@ -143,7 +150,7 @@ EKSPERYMENTY: list[tuple[str, str, list]] = [
         # przewidziec zza biurka.
         ("trening", ["-m", "src.train", "--epoki", "60", *SPLIT, *WYBOR, *DEKOD, *CIERPLIWOSC,
                      "--wagi-klas", "--out", CK["cew"]]),
-        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["cew"], *SPLIT, *DEKOD,
+        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["cew"], *SPLIT, *DEKOD_OCENA,
                         "--na", "test", "--csv", "cew_test.csv"]),
     ]),
 
@@ -154,7 +161,7 @@ EKSPERYMENTY: list[tuple[str, str, list]] = [
         ("trening", ["-m", "src.train", "--epoki", "60", *SPLIT, *WYBOR, *DEKOD, *CIERPLIWOSC,
                      "--w-energia", "1.0", "--w-parowania", "1.0", "--w-sklad", "1.0",
                      "--wagi-klas", "--out", CK["e1w"]]),
-        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["e1w"], *SPLIT, *DEKOD,
+        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["e1w"], *SPLIT, *DEKOD_OCENA,
                         "--na", "test", "--csv", "e1w_test.csv"]),
     ]),
 
@@ -167,37 +174,28 @@ EKSPERYMENTY: list[tuple[str, str, list]] = [
                      "--w-energia", "1.0", "--w-parowania", "1.0",
                      "--w-sklad-zasad", "1.0", "--w-sklad-par", "1.0",
                      "--wagi-klas", "--out", CK["e2w"]]),
-        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["e2w"], *SPLIT, *DEKOD,
+        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["e2w"], *SPLIT, *DEKOD_OCENA,
                         "--na", "test", "--csv", "e2w_test.csv"]),
     ]),
 
-    ("E3", "Kara TV TYLKO NA PETLE. Czlon par zdjety, bo jego cel pasuje do treningu, nie do testu", [
-        # SKAD TEN EKSPERYMENT. Ablacja leave-one-out (`python -m src.siatka`, wynik w
-        # experiments/analysis/ablacja_kar.csv) pokazala, ze dwa czlony kary TV ciagna w przeciwne
-        # strony — i to POWTORZYLO SIE na obu podstawach, zwyklej i wazonej CE:
+    ("E3", "KONTROLA: energia i parowania z waga 1,0, ale BEZ kary za sklad", [
+        # PO CO. E1 ma trzy kary i wypada gorzej niz CE, ktore nie ma zadnej:
         #
-        #   zdjecie czlonu PAR    zbal_par +0,72 / +0,57 pp,  Youden +67% / +34%,  TV par -0,053
-        #   zdjecie czlonu PETLI  TV petli 2-3 krotnie gorsze
+        #     E1  zbal_par 34,43%   Youden +0,0169   G:C 0,654
+        #     CE  zbal_par 35,22%   Youden +0,0287   G:C 0,592
         #
-        # Przyczyna lezy w celach. Cel dla petli (A 0,324 C 0,208 G 0,217 U 0,252) jest trafny, bo
-        # sklad petli praktycznie nie rozni sie miedzy rodzinami. Cel dla par (G:C 0,599) zgadza sie
-        # z naszym TRENINGIEM (0,600), ale nie z nowymi rodzinami (0,484), wiec kara systematycznie
-        # prowadzi model do wartosci zlej dla zbioru, na ktorym go oceniamy.
+        # Ale te dwa przebiegi roznia sie TRZEMA rzeczami naraz, wiec nie wiadomo, ktora odpowiada
+        # za roznice. E3 rozdziela to na dwa kroki:
         #
-        # E3 bierze wiec to, co dziala, i zostawia to, co szkodzi. Energia i parowania jak w E1.
+        #     E1 -> E3   zdejmujemy KARE ZA SKLAD          (zostaja energia i parowania)
+        #     E3 -> CE   zdejmujemy ENERGIE i PAROWANIA    (nie zostaje nic)
+        #
+        # Kazdy krok zmienia dokladnie jedna rzecz, wiec roznice da sie przypisac.
         ("trening", ["-m", "src.train", "--epoki", "60", *SPLIT, *WYBOR, *DEKOD, *CIERPLIWOSC,
                      "--w-energia", "1.0", "--w-parowania", "1.0",
-                     "--w-sklad-tv-petle", "1.0", "--out", CK["e3"]]),
-        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["e3"], *SPLIT, *DEKOD,
+                     "--out", CK["e3"]]),
+        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["e3"], *SPLIT, *DEKOD_OCENA,
                         "--na", "test", "--csv", "e3_test.csv"]),
-    ]),
-
-    ("E3W", "E3 z wazona CE: kara TV tylko na petle ORAZ wyrownany wklad klas do gradientu", [
-        ("trening", ["-m", "src.train", "--epoki", "60", *SPLIT, *WYBOR, *DEKOD, *CIERPLIWOSC,
-                     "--w-energia", "1.0", "--w-parowania", "1.0",
-                     "--w-sklad-tv-petle", "1.0", "--wagi-klas", "--out", CK["e3w"]]),
-        ("ocena_test", ["-m", "src.evaluate", "--ckpt", CK["e3w"], *SPLIT, *DEKOD,
-                        "--na", "test", "--csv", "e3w_test.csv"]),
     ]),]
 
 

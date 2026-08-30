@@ -3,12 +3,18 @@
 Projektowanie sekwencji RNA pod zadaną strukturę drugorzędową. Folder jest **samowystarczalny**:
 zawiera dane, kod, eksperymenty i dokumentację, nie odwołuje się do niczego na zewnątrz.
 
+**Cel:** model oparty na transformerze, który dla zadanej struktury drugorzędowej jak najlepiej
+przewiduje sekwencję nukleotydową. Eksperymenty `E` to droga do niego — każdy sprawdza jedną decyzję
+projektową przy pozostałych zamrożonych.
+
 ```
 python run.py dane              # cd-hit-est + filtry + podzial rodzinowy
 python run.py E1                # kara za sklad: odleglosc TV (dwustronna), waga 1,0
 python run.py E2                # kara za sklad: progi dolne (jednostronna), waga 1,0
 python run.py CE                # BEZ kary za sklad — ablacja
 python run.py E1W / E2W / CEW   # to samo, ale cross-entropia WAZONA odwrotnie do czestosci klas
+python run.py E3                # KONTROLA: energia i parowania, ale BEZ kary za sklad
+python -m src.szum              # prog istotnosci: 7 konfiguracji x 3 ziarna
 ```
 
 Sześć przebiegów w dwóch wymiarach — konstrukcja kary za skład i ważenie cross-entropii:
@@ -20,8 +26,16 @@ CE wazona       E1W           E2W           CEW
 ```
 
 W obrębie każdego przebiegu wszystko poza tymi dwiema decyzjami jest identyczne: dane, podział,
-architektura, wagi 1,0, próbkowanie z ziarnem 0, 60 epok, epoka wybrana po `zbal_par` na walidacji.
-Szczegóły i wyniki w [EKSPERYMENTY.md](EKSPERYMENTY.md).
+architektura, wagi 1,0, dekodowanie przez `argmax` ze straight-through, 60 epok, epoka wybrana po
+`zbal_par` na walidacji.
+
+`E3` stoi poza tą siatką — to **kontrola**, która zdejmuje samą karę za skład i zostawia energię
+z parowaniami. Bez niej różnicy `E1` kontra `CE` nie da się przypisać żadnemu konkretnemu członowi
+straty, bo te dwa przebiegi różnią się trzema rzeczami naraz.
+
+Żadnej różnicy nie czytamy bez **progu istotności**: każda konfiguracja jest trenowana trzy razy na
+różnych ziarnach inicjalizacji, a porównania są parowane w obrębie ziarna. Szczegóły i wyniki
+w [EKSPERYMENTY.md](EKSPERYMENTY.md).
 
 ## Co gdzie jest
 
@@ -29,8 +43,8 @@ Szczegóły i wyniki w [EKSPERYMENTY.md](EKSPERYMENTY.md).
 |---|---|
 | [MODEL.md](MODEL.md) | architektura, funkcja straty, sposób trenowania i oceny |
 | [EKSPERYMENTY.md](EKSPERYMENTY.md) | co testowano, wyniki, znane wady |
-| [notebooks/01_dane.ipynb](notebooks/01_dane.ipynb) | wykresy: co jest w zbiorach treningowym, walidacyjnym, testowym i w Eternie |
-| [notebooks/02_wyniki.ipynb](notebooks/02_wyniki.ipynb) | wykresy: wyniki obu eksperymentów |
+| [notebooks/01_dane.ipynb](notebooks/01_dane.ipynb) | wykresy: co jest w zbiorach treningowym, walidacyjnym i testowym |
+| [notebooks/02_wyniki.ipynb](notebooks/02_wyniki.ipynb) | wykresy: wyniki wszystkich przebiegów, z progami istotności |
 
 ## Dane
 
@@ -38,11 +52,9 @@ Wszystko jest w repozytorium, nic się nie pobiera.
 
 ```
 data/raw/rna_raw.parquet   31 026 sekwencji, 896 rodzin Rfam — PRZED odsianiem redundancji
-data/raw/eterna100.tsv     zagadki Eterna100 z rozwiazaniami graczy
 
 data/cdhit/                po cd-hit-est          <- buduje src/cdhit.py
 data/working.parquet       po filtrach            <- buduje src/prepare.py
-data/eterna_working.parquet                       <- buduje src/prepare.py
 data/splits/               podzialy 60/20/20      <- buduje src/split.py
 ```
 
@@ -74,7 +86,11 @@ src/split.py        podzial 60/20/20, rodzinowy albo losowy
 src/model.py        transformer enkoder-only, dwie glowice
 src/loss.py         komponenty straty: energia, parowania, sklad
 src/train.py        petla treningowa
-src/evaluate.py     ocena na tescie naturalnym i Eternie
+src/evaluate.py     ocena: metryki, kontrola zgodnosci z zadana struktura
+src/cele.py         pomiar celu skladu na calej puli
+src/szum.py         prog istotnosci — powtorzenia na roznych ziarnach
+src/przeglad.py     przeglad wag na walidacji
+src/test_youden.py  weryfikacja wskaznika Youdena na danych sztucznych
 ```
 
 Kod rysujący wykresy jest w samych notatnikach, nie w `src/`.

@@ -23,10 +23,47 @@ PAIR_TO_BASE_IDX = torch.tensor([[BASE_TO_IDX[a], BASE_TO_IDX[b]] for a, b in PA
 # NIE uzywa go baseline: ten losuje jednostajnie, zeby nie dostac za darmo wiedzy o skladzie,
 # ktora model musi wyciagnac z danych. Patrz `losowa_kanoniczna` ponizej.
 #
-# Zmierzony na TRZECH OPUBLIKOWANYCH BAZACH struktur RNA (bpRNA, RNAStrAlign, ArchiveII; n = 29 571),
-# z wykluczeniem struktur obecnych w naszej walidacji albo tescie. Odtworzenie: `python -m src.cele`.
-NATURAL_LOOP = {"A": 0.324, "C": 0.208, "G": 0.217, "U": 0.252}   # zasady na pozycjach NIESPAROWANYCH
-NATURAL_PAIR = {"GC": 0.599, "AU": 0.276, "GU": 0.124}            # udzialy TYPOW par
+# Zmierzony na NASZYM WLASNYM zbiorze `data/working.parquet` — wszystkie 3640 sekwencji, czyli
+# train + val + test razem (95 790 par i 147 092 pozycji niesparowanych).
+# Odtworzenie: `python -m src.cele`.
+#
+# POPRZEDNIO cel pochodzil z baz zewnetrznych (bpRNA + RNAStrAlign + ArchiveII, n = 29 571) i wynosil
+# G:C 0,599. Pokrywal sie z naszym TRENINGIEM (0,600), ale nie z walidacja ani testem (obie 0,484),
+# wiec kara systematycznie prowadzila model ku skladowi zlemu dla zbiorow, na ktorych go oceniamy.
+#
+# CO TO ZMIENIA W INTERPRETACJI. Cel obejmuje teraz takze test, wiec zdanie "model trafil w sklad
+# testu" przestaje byc dowodem, ze nauczyl sie go z danych — czesc tej informacji dostal wprost
+# w celu kary. Na trafnosc (`zbal_par`, Youden) to nie wplywa: globalne proporcje nie mowia,
+# ktora para stoi w ktorym miejscu. Dotyczy wylacznie miar SKLADU i tylko modeli z kara E1.
+NATURAL_LOOP = {"A": 0.311, "C": 0.203, "G": 0.205, "U": 0.280}   # zasady na pozycjach NIESPAROWANYCH
+NATURAL_PAIR = {"GC": 0.551, "AU": 0.332, "GU": 0.117}            # udzialy TYPOW par
+
+# MARTWA STREFA kary za sklad w E1 — SPRAWDZONA I ODRZUCONA, domyslnie wylaczona (0,0).
+#
+# POMYSL. Cel jest srednia POPULACYJNA, a kara dziala na POJEDYNCZEJ sekwencji. Prawdziwa sekwencja
+# odbiega od celu srednio o 0,147 (pary) i 0,124 (petle), wiec kara ma nieusuwalna PODLOGE i karze
+# za normalna zmiennosc biologiczna. Model z ta kara osiaga 0,327 przy 0,314 dla sekwencji
+# referencyjnych — czyli jest juz tam, gdzie natura, a gradient dalej go sciska. Skutek uboczny:
+# odchylenie standardowe udzialu G:C miedzy sekwencjami spada do 0,114 wobec 0,146 w naturze.
+#
+# CO SPRAWDZILISMY. Odejmowanie tolerancji i przycinanie do zera, w dwoch wariantach
+# (75. percentyl naturalnego rozrzutu: pary 0,20, petle 0,16):
+#
+#     wariant                zbal_par   J_par    G:C     kara E1   std G:C
+#     bez tolerancji (E1)      34,43%  +0,0169  0,654     0,327     0,114
+#     tolerancja na obu        34,85%  +0,0246  0,655     0,366     0,127
+#     tolerancja tylko pary    34,75%  +0,0219  0,675     0,348     0,122
+#     REFERENCJA                               0,484     0,314     0,146
+#
+# WYNIK NEGATYWNY. Oba warianty kupuja ulamek punktu trafnosci i placa wyraznie gorszym skladem:
+# wartosc kary rosnie z 0,327 na 0,348-0,366 przy naturze 0,314. Zdjecie presji nie sprawilo, ze
+# model rozproszyl sie wokol celu — sprawilo, ze odplynal tam, gdzie ciagna go pozostale czlony
+# straty, przede wszystkim energia premiujaca pary G:C.
+#
+# Problem podlogi jest wiec realny, ale martwa strefa go nie rozwiazuje. Mechanizm zostaje w kodzie
+# (`--tol-sklad-pary`, `--tol-sklad-petle`), zeby dalo sie ten wynik odtworzyc.
+TOLERANCJA_PAR = 0.0
+TOLERANCJA_PETLE = 0.0
 
 
 def parse_pairs(struct: str) -> list[tuple[int, int]]:

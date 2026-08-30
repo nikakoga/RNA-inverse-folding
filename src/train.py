@@ -37,10 +37,20 @@ czyli awarie, ktora eksperyment ma zmierzyc: identycznosc jest maksymalizowana p
 Wybor musi byc TAKI SAM we wszystkich porownywanych eksperymentach, inaczej porownanie traci sens —
 dlatego `loss`, ktory w E1 i E2 obejmuje inna kare, sie do tego nie nadaje.
 
-DEKODOWANIE (`--dekodowanie`, domyslnie `probkowanie`). Przy `argmax` plaskie rozklady daja te sama
-litere na kazdej pozycji, wiec sklad wyjscia degeneruje sie mimo poprawnego skladu rozkladu.
-`probkowanie` odtwarza rozklad. Ta sama opcja musi byc uzyta w src/evaluate.py, inaczej wybieramy
-epoke pod inne dekodowanie niz raportujemy.
+DEKODOWANIE (`--dekodowanie`, domyslnie `argmax`). Generowanie jest wtedy deterministyczne: nie
+trzeba ziarna, a wynik da sie odtworzyc co do litery.
+
+ARGMAX WYMAGA `--kary-na-argmax`. Kary licza sie normalnie na ROZKLADACH, a argmax patrzy tylko, kto
+jest na szczycie — nie o ile wygrywa. Bez tej flagi model moze miec rozklad o poprawnym skladzie
+i zdegenerowane wyjscie: zmierzylismy taki o miekkim `G:C 0,622`, ktory po argmaxie dawal 0,984.
+Flaga wlacza estymator straight-through, dzieki ktoremu kary widza twarde wyjscie.
+
+Alternatywa, z ktorej zrezygnowalismy: `probkowanie`. Kara i wyjscie zgadzaja sie wtedy bez zadnych
+sztuczek, bo oczekiwany sklad wylosowanej sekwencji rowna sie skladowi rozkladu. Cena to utrata
+determinizmu — ziarno staje sie czescia wyniku.
+
+Ta sama opcja musi byc uzyta w src/evaluate.py, inaczej wybieramy epoke pod inne dekodowanie
+niz raportujemy.
 
 WCZESNE ZATRZYMANIE jest domyslnie WYLACZONE (`--cierpliwosc` = `--epoki`), bo `zbal_par` szumi tuz
 przy poziomie losowym i jego maksimum potrafi wypasc w epoce 1. Ochrone przed przeuczeniem daje
@@ -70,7 +80,9 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from src.dataset import koduj, parse_pairs, BASES, PAIR_TO_CLASS, N_PAIR_CLASSES
 from src.model import NARDesigner
-from src.loss import KomponentyNAR, NATURAL_LOOP, NATURAL_PAIR, PROG_ZASADY, PROG_PARY
+from src.loss import KomponentyNAR, PROG_ZASADY, PROG_PARY
+from src.dataset import (NATURAL_LOOP, NATURAL_PAIR,
+                         TOLERANCJA_PAR, TOLERANCJA_PETLE)
 from src.prepare import wczytaj
 from src.split import wczytaj_split
 
@@ -265,20 +277,52 @@ def waliduj(model, structs, seqs, device, bs=64, komp=None, args=None, e_ref=Non
     return w
 
 
+def twarde_st(logity):
+    """One-hot z argmax w przod, gradient softmaxu w tyl — estymator STRAIGHT-THROUGH.
+
+    PO CO. Kary za sklad, energie i parowania licza sie normalnie na ROZKLADACH. Gdy sekwencje
+    generujemy przez `argmax`, rozklad i wyjscie moga sie drastycznie rozjechac: zmierzylismy model
+    o miekkim skladzie `G:C 0,622`, ktory po argmaxie dawal 0,984. Kara byla spelniona, a wyjscie
+    zdegenerowane — bo argmax patrzy tylko, kto jest na szczycie, nie o ile wygrywa.
+
+    Ta funkcja pokazuje karom to, co NAPRAWDE wyjdzie. Sztuczka:
+
+        wynik = twarde + (miekkie - miekkie.detach())
+
+    W przod `twarde - miekkie.detach() + miekkie` = twarde (one-hot), bo czlony miekkie sie znosza.
+    W tyl pochodna czlonu `twarde` jest zerowa (detach), wiec gradient plynie wylacznie przez
+    `miekkie` — tak, jakby zadnego argmaxu nie bylo.
+
+    Gradient jest przez to OBCIAZONY: udajemy, ze funkcja schodkowa jest gladka. To znana i przyjeta
+    cena; bez tego kara nie ma zadnego wplywu na to, co produkuje argmax.
+    """
+    miekkie = logity.softmax(-1)
+    twarde = torch.zeros_like(miekkie).scatter_(-1, miekkie.argmax(-1, keepdim=True), 1.0)
+    return twarde + miekkie - miekkie.detach()
+
+
 def skladaj_loss(komp, args, lp, lz, par, otw, realne, ce):
     """Pelna strata: CE plus wlaczone komponenty, kazdy ze swoja waga.
 
     Uzywana i w treningu, i w walidacji — dzieki temu `--wybor loss` porownuje DOKLADNIE te wielkosc,
     ktora model minimalizuje, a nie jej przyblizenie.
+
+    `--kary-na-argmax` przelacza kary z rozkladow na twarde wyjscie argmaxu (straight-through).
+    Musi byc wlaczone razem z `--dekodowanie argmax`, inaczej kara pilnuje czego innego, niz
+    wychodzi z modelu.
     """
-    p_par, p_zas = lp.softmax(-1), lz.softmax(-1)
+    if args.kary_na_argmax:
+        p_par, p_zas = twarde_st(lp), twarde_st(lz)
+    else:
+        p_par, p_zas = lp.softmax(-1), lz.softmax(-1)
     z = lp.new_zeros(())
     e = komp.energia(p_par, p_zas, par, otw, realne) if args.w_energia else z
     a = komp.parowania(p_par, p_zas, par, otw, realne) if args.w_parowania else z
     # Kara TV ma DWA czlony z osobnymi wagami: pary i petle. Ablacja pokazala, ze ciagna
-    # w przeciwne strony, wiec E3 wlacza tylko petle.
+    # w przeciwne strony — czlon petli pomaga, czlon par szkodzi.
     if args.w_sklad_tv_pary or args.w_sklad_tv_petle:
-        c_par, c_pet = komp.sklad(p_par, p_zas, par, otw, realne)
+        c_par, c_pet = komp.sklad(p_par, p_zas, par, otw, realne,
+                                  args.tol_sklad_pary, args.tol_sklad_petle)
     else:
         c_par = c_pet = z
     sz = komp.sklad_zasad(p_par, p_zas, par, otw, realne) if args.w_sklad_zasad else z
@@ -304,12 +348,18 @@ def main():
     ap.add_argument("--w-sklad", type=float, default=0.0,
                     help="NASZA kara za sklad (odleglosc TV, dwustronna, per sekwencja) — OBA czlony, "
                          "pary i petle, z ta sama waga. To jest ustawienie E1")
+    ap.add_argument("--tol-sklad-pary", type=float, default=TOLERANCJA_PAR,
+                    help="MARTWA STREFA czlonu par kary TV: o ile sekwencja moze odbiegac "
+                         "od celu, zanim zacznie byc karana. Domyslnie 75. percentyl "
+                         "naturalnego rozrzutu. 0 = kara bez tolerancji, jak przed zmiana")
+    ap.add_argument("--tol-sklad-petle", type=float, default=TOLERANCJA_PETLE,
+                    help="to samo dla czlonu petli")
     ap.add_argument("--w-sklad-tv-pary", type=float, default=None,
                     help="tylko czlon PAR kary TV; nadpisuje --w-sklad. Cel G:C 0,599 pasuje do "
                          "treningu, a nie do nowych rodzin, wiec ten czlon zwykle szkodzi")
     ap.add_argument("--w-sklad-tv-petle", type=float, default=None,
                     help="tylko czlon PETLI kary TV; nadpisuje --w-sklad. Cel jest tu trafny, bo "
-                         "sklad petli nie rozni sie miedzy rodzinami. E3 = same petle")
+                         "sklad petli nie rozni sie miedzy rodzinami")
     ap.add_argument("--w-sklad-zasad", type=float, default=0.0,
                     help="kara promotora, DistribLoss: progi dolne udzialow A/C/G/U, per sekwencja")
     ap.add_argument("--w-sklad-par", type=float, default=0.0,
@@ -326,11 +376,15 @@ def main():
                          "i szumi, wiec jego maksimum potrafi wypasc w epoce 1 — przy cierpliwosci "
                          "10 zapisywal sie model po JEDNEJ epoce. Do tego cosine schodzi do zera "
                          "dopiero w ostatniej epoce, wiec przerwanie zostawia model nierozstrojony"),
-    ap.add_argument("--dekodowanie", choices=["argmax", "probkowanie"], default="probkowanie",
+    ap.add_argument("--dekodowanie", choices=["argmax", "probkowanie"], default="argmax",
                     help="jak zamienic rozklady na sekwencje w WALIDACJI; ta sama opcja musi byc "
                          "uzyta pozniej w src/evaluate.py, inaczej wybieramy epoke pod inne "
-                         "dekodowanie niz raportujemy. `argmax` zostawiony wylacznie do odtworzenia "
-                         "diagnozy degeneracji — nie uzywac do nowych wynikow"),
+                         "dekodowanie niz raportujemy. Przy `argmax` wlacz tez --kary-na-argmax"),
+    ap.add_argument("--kary-na-argmax", action="store_true",
+                    help="kary za sklad/energie/parowania licz na TWARDYM wyjsciu argmaxu "
+                         "(straight-through) zamiast na rozkladach. Wlaczaj RAZEM z "
+                         "`--dekodowanie argmax` — inaczej kara pilnuje rozkladu, a raportujemy "
+                         "argmax, i te dwie rzeczy potrafia sie drastycznie rozjechac")
     ap.add_argument("--seed-modelu", type=int, default=None,
                     help="ziarno inicjalizacji wag i kolejnosci partii, BEZ ruszania podzialu "
                          "danych; sluzy do mierzenia szumu miedzy przebiegami. Domyslnie = --seed")
@@ -350,6 +404,14 @@ def main():
         args.w_sklad_tv_pary = args.w_sklad
     if args.w_sklad_tv_petle is None:
         args.w_sklad_tv_petle = args.w_sklad
+
+    # Kara i dekodowanie musza patrzec na to samo, inaczej pilnujemy czego innego, niz raportujemy.
+    if args.dekodowanie == "argmax" and not args.kary_na_argmax:
+        print("UWAGA: dekodowanie argmax, ale kary licza sie na rozkladach. Model moze miec poprawny "
+              "sklad rozkladu i zdegenerowane wyjscie — dodaj --kary-na-argmax.")
+    if args.kary_na_argmax and args.dekodowanie != "argmax":
+        print("UWAGA: kary licza sie na argmaxie, ale generujemy przez probkowanie. "
+              "Kara pilnuje wtedy czego innego, niz wychodzi z modelu.")
 
     # DWA OSOBNE ZIARNA. `--seed` wyznacza PODZIAL danych, wiec zmiana go zmienia zbior testowy
     # i wyniki przestaja byc porownywalne. `--seed-modelu` rusza tylko losowa inicjalizacje wag

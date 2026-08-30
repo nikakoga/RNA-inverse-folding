@@ -32,14 +32,8 @@ VRNA_BASE = {"A": 1, "C": 2, "G": 3, "U": 4}
 _P = RNA.param(RNA.md())
 _EPS = 1e-9
 
-# Sklad NATURALNY — cel kary za sklad w E1. Definicja stoi w `src/dataset.py`, zeby kara i baseline
-# korzystaly z JEDNEJ stalej. Zmierzony na bpRNA + RNAStrAlign + ArchiveII (n = 29 571), z wykluczeniem
-# struktur obecnych w naszej walidacji albo tescie; odtworzenie: `python -m src.cele`.
-#
-# Nie przepisujemy tu liczb z NEMO (Portela, bioRxiv 345587). Zmierzone G:C 0,599 pokrywa sie z jego
-# priorem 0,593, ale A:U 0,333 i G:U 0,074 juz nie, bo NEMO celowo tlumi pary chwiejne dla
-# niezawodnosci zwijania — i z tego samego powodu wypelnia petle w 93% adenina. To sa decyzje
-# PROJEKTOWE, nie opis natury: jako cel popchnelyby model wprost ku degeneracji poli-A.
+# Sklad NATURALNY (cel kary E1) i MARTWA STREFA sa zdefiniowane w `src/dataset.py`, zeby kara
+# i baseline korzystaly z jednej stalej. Odtworzenie: `python -m src.cele`.
 
 # PROGI DOLNE ze specyfikacji promotora — uzywane przez `sklad_zasad` i `sklad_par`.
 # To NIE sa cele, tylko MINIMA: kara pojawia sie dopiero ponizej progu, nadmiar jest bezkarny.
@@ -182,7 +176,8 @@ class KomponentyNAR:
         return (komb / realne.sum(1).clamp(min=1) ** 2).mean()
 
     # ------------------------------------------------------------------ skład
-    def sklad(self, p_par, p_zasad, partner, otw, realne) -> torch.Tensor:
+    def sklad(self, p_par, p_zasad, partner, otw, realne,
+              tol_par: float = 0.0, tol_petle: float = 0.0) -> torch.Tensor:
         """Odleglosc skladu od NATURALNEGO, osobno dla par i osobno dla petli.
 
         PARY mierzymy jako TYPY (G:C / A:U / G:U), nie jako liczebnosci pojedynczych zasad — kara
@@ -199,16 +194,38 @@ class KomponentyNAR:
         Kazda sekwencja ma i pary, i pozycje niesparowane: filtr `paired_fraction >= 0.5` wymusza to
         pierwsze, a domkniecie helisy petla — to drugie. Oba czlony sa wiec zawsze okreslone.
 
-        ZWRACAMY OBA CZLONY OSOBNO, bo ablacja (`experiments/analysis/ablacja_kar.csv`) pokazala, ze
-        dzialaja w przeciwne strony:
+        ZWRACAMY OBA CZLONY OSOBNO, bo maja rozne wlasnosci i moga wymagac roznych wag:
 
-          PETLE  cel A 0,324 C 0,208 G 0,217 U 0,252 jest trafny — sklad petli praktycznie nie rozni
-                 sie miedzy rodzinami, wiec kara pomaga. Jej zdjecie pogarsza TV petli 2-3 krotnie.
-          PARY   cel G:C 0,599 pasuje do TRENINGU (0,600), a nie do nowych rodzin (0,484), wiec kara
-                 systematycznie prowadzi w zla strone. Jej zdjecie podnosi Youdena o 34-67%.
+          PETLE  cel A 0,311 C 0,203 G 0,205 U 0,280 — sklad petli praktycznie nie rozni sie miedzy
+                 rodzinami (train 0,316/0,198/0,208/0,278 wobec test 0,309/0,212/0,205/0,274),
+                 wiec ten cel pasuje do kazdego podzbioru.
+          PARY   cel G:C 0,551 to srednia wazona po calym zbiorze, ale trening ma 0,600, a walidacja
+                 i test po 0,484. Cel jest wiec blizej treningu niz zbiorow, na ktorych oceniamy.
 
-        Wywolujacy nadaje kazdemu czlonowi wlasna wage. Waga 1,0 na obu odtwarza dokladnie
-        poprzednie zachowanie (E1), a 0,0 na parach i 1,0 na petlach daje E3.
+        Wywolujacy nadaje kazdemu czlonowi wlasna wage. `--w-sklad 1.0` ustawia oba, co odtwarza
+        zachowanie E1; osobne flagi pozwalaja wazyc je niezaleznie.
+
+        MARTWA STREFA (`tol_par`, `tol_petle`). Cel jest srednia POPULACYJNA, a kara dziala na
+        POJEDYNCZEJ sekwencji — a pojedyncza czasteczka nie ma skladu rownego sredniej i nie powinna
+        miec. Zmierzone na naszym zbiorze, odleglosc PRAWDZIWEJ sekwencji od celu:
+
+            czlon     srednia   mediana   75%     90%
+            pary        0,147     0,132   0,199   0,265
+            petle       0,124     0,114   0,158   0,211
+
+        Bez martwej strefy kara ma wiec nieusuwalna podloge i karze za bycie normalnym. Widac to
+        w wynikach: model z ta kara osiaga 0,327 przy 0,314 dla sekwencji referencyjnych, czyli jest
+        juz tam, gdzie natura — a mimo to gradient dalej go sciska. Skutek uboczny: odchylenie
+        standardowe udzialu G:C miedzy sekwencjami spada do 0,114 wobec 0,146 w naturze, czyli kara
+        wygladza zmiennosc biologiczna.
+
+        Odejmujemy wiec tolerancje i przycinamy do zera. Sekwencja miesczaca sie w typowym rozrzucie
+        placi ZERO; kara wlacza sie dopiero dla odstajacych. Degeneracja typu poli-A ma odleglosc
+        rzedu 0,6-0,8, wiec nadal jest karana mocno.
+
+        Domyslne progi to 75. percentyl naturalnego rozrzutu (`TOLERANCJA_*` w src/dataset.py):
+        przepuszczaja trzy czwarte prawdziwych sekwencji. `tol = 0` odtwarza zachowanie sprzed
+        tej zmiany.
         """
         # typy par: klasy 0,1 = G:C; 2,3 = A:U; 4,5 = G:U            -> (B,3)
         r_par = self._udzialy_typow_par(p_par, otw)
@@ -219,6 +236,9 @@ class KomponentyNAR:
 
         d_par = 0.5 * (r_par - self.cel_pary).abs().sum(-1)                         # (B,)
         d_nsp = 0.5 * (r_nsp - self.cel_petle).abs().sum(-1)                        # (B,)
+        # MARTWA STREFA: odchylenie mieszczace sie w naturalnym rozrzucie nie jest karane.
+        d_par = (d_par - tol_par).clamp(min=0)
+        d_nsp = (d_nsp - tol_petle).clamp(min=0)
         return d_par.mean(), d_nsp.mean()
 
     # -------------------------------------------------- kara skladu wg specyfikacji promotora
@@ -260,21 +280,13 @@ class KomponentyNAR:
         return (x.sum(-1) / 4).mean()
 
     def sklad_par(self, p_par, otw) -> torch.Tensor:
-        """DistribLoss3 + DistribLoss4 ze specyfikacji promotora — udzialy TYPOW par.
+        """DistribLoss3 ze specyfikacji promotora — udzialy TYPOW par.
 
             a, b, c        = max(prog - udzial, 0) / prog   dla G:C, A:U, G:U
             DistribLoss3   = (a + b + c) / 3
-            DistribLoss4   = max((a + b + c) - 1, 0)
 
-        DistribLoss4 to ESKALACJA. Dopoki zawodzi jeden typ pary, dochodzi zero. Dopiero gdy
-        sumaryczny niedobor przekroczy 1 — czyli zawodza co najmniej dwa typy — dokladana jest kara
-        dodatkowa. Sekwencja bez jednego typu par jest tolerowana, bez dwoch — karana podwojnie.
-
-        UWAGA DO ZAPISU ZE SPECYFIKACJI: w oryginale w tej czesci uzyto zmiennych `c` i `g`
-        z poprzedniego bloku (udzialy cytozyny i guaniny) zamiast udzialow par A:U i G:U. Z kontekstu
-        wynika, ze chodzilo o udzialy par — i tak to zaimplementowano.
+        JEDNOSTRONNA: karzemy wylacznie NIEDOBOR. Nadmiar zostaje bez kary.
         """
         u = self._udzialy_typow_par(p_par, otw)
         v = (self.prog_pary - u).clamp(min=0) / self.prog_pary
-        s = v.sum(-1)
-        return (s / 3 + (s - 1.0).clamp(min=0)).mean()
+        return (v.sum(-1) / 3).mean()

@@ -1,6 +1,6 @@
 baseline losowy kanoniczny
 zbior TEST: 728 struktur | Eterna <= 200 nt: 39
-dekodowanie: argmax
+dekodowanie: probkowanie (ziarno 0)
 wlasna kara za sklad: brak kary za sklad
 
 zbior         dlugosc     n  ident_nt  ident_par  zbal_par  zbal_zas    dE/nt
