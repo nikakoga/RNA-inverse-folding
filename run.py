@@ -83,9 +83,7 @@ EKSPERYMENTY: list[tuple[str, str, list]] = [
         # ani jednej wagi, ktorej nie da sie uzasadnic jednym zdaniem.
         #
         # POPRZEDNIO parowania mialy 6,0 — liczbe odziedziczona z wczesniejszego projektu, ktorej
-        # nigdzie nie umielismy uzasadnic. Przeglad wag (`python -m src.przeglad`) pokazal, ze na
-        # trafnosc nie wplywa ona w ogole: caly zakres 0..12 miesci sie w szumie pojedynczego
-        # przebiegu. Skoro nie zmienia wyniku, a wymaga tlumaczenia, zdejmujemy ja.
+        # nigdzie nie umielismy uzasadnic. Skoro nie da sie jej uzasadnic, zdejmujemy ja.
         ("trening", ["-m", "src.train", "--epoki", "60", *SPLIT, *WYBOR, *DEKOD, *CIERPLIWOSC,
                      "--w-energia", "1.0", "--w-parowania", "1.0", "--w-sklad", "1.0",
                      "--out", CK["e1"]]),

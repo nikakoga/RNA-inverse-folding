@@ -89,7 +89,6 @@ src/train.py        petla treningowa
 src/evaluate.py     ocena: metryki, kontrola zgodnosci z zadana struktura
 src/cele.py         pomiar celu skladu na calej puli
 src/szum.py         prog istotnosci — powtorzenia na roznych ziarnach
-src/przeglad.py     przeglad wag na walidacji
 src/test_youden.py  weryfikacja wskaznika Youdena na danych sztucznych
 ```
 

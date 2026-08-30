@@ -71,7 +71,7 @@ Wymaga to jednak, żeby **kary też patrzyły na twarde wyjście** (`--kary-na-a
 straight-through). Kary liczą się normalnie na rozkładach, a `argmax` patrzy tylko, kto jest na
 szczycie — nie o ile wygrywa. Bez tego model może mieć rozkład o poprawnym składzie i zdegenerowane
 wyjście: zmierzyliśmy taki o miękkim `G:C 0,622`, który po `argmax` dawał 0,984. Szczegóły
-w sekcji „Dekodowanie".
+w sekcji „Dlaczego argmax wymaga straight-through".
 
 ### Co liczy każda z nich
 
@@ -301,9 +301,8 @@ Sekwencja całkowicie zdegenerowana (same pary G:C, pętle z adeniny) ma energi�
 wobec −0,295 dla sekwencji naturalnych, czyli na samej energii wygrywa z ogromną przewagą. Gdyby to
 ona rozstrzygała, wybór epoki systematycznie wskazywałby epokę najbardziej zdegenerowaną.
 
-**Strojenie wag odbywa się WYŁĄCZNIE na walidacji** (`python -m src.przeglad`), a na test patrzymy
-raz, po wybraniu konfiguracji. Wynik przeglądu jest negatywny — patrz „Przegląd wag" niżej — więc
-wszystkie sześć przebiegów zachowuje wagi ustalone z góry, bez dobierania pod wynik.
+**Wszystkie przebiegi zachowują wagi ustalone z góry**, bez dobierania pod wynik — patrz „Wagi:
+wszystkie 1,0" niżej.
 
 ---
 
@@ -443,27 +442,6 @@ w sekcji „Rozkład kar na składniki" niżej.
 
 Wykresy: [notebooks/02_wyniki.ipynb](notebooks/02_wyniki.ipynb).
 
-### Argmax ze straight-through wypadł lepiej niż próbkowanie
-
-Wcześniejsza wersja tych eksperymentów dekodowała przez losowanie z rozkładu. Przejście na `argmax`
-z karami liczonymi na twardym wyjściu poprawiło każdy model na każdej mierze:
-
-```
-                 probkowanie     argmax    roznica     prog
-CE   ident_nt       27,76%       29,88%     +2,12      0,83   <- powyzej progu
-CE   zbal_par       35,00%       35,22%     +0,22      1,51
-CE   Youden        +0,0256      +0,0287    +0,0031    0,0223
-CEW  Youden        +0,0152      +0,0361    +0,0209    0,0223
-```
-
-⚠️ Powyżej progu jest tylko **identyczność nukleotydowa**. Pozostałe różnice idą w dobrą stronę, ale
-mieszczą się w zmienności przebiegów — a ponieważ pochodzą z pojedynczych przebiegów w dwóch różnych
-reżimach, nie są nawet porównaniem parowanym.
-
-Główny argument za `argmax` jest zresztą inny i niezależny od tych liczb: **determinizm**. Nie trzeba
-ziarna, a wynik da się odtworzyć co do litery. Do tego dochodzi zniknięcie degeneracji, opisane niżej
-— i to jest efekt ogromny, nie subtelny.
-
 ### Degeneracja zniknęła
 
 To był główny powód, dla którego wcześniej porzuciliśmy `argmax`:
@@ -529,16 +507,6 @@ Jedyna różnica istotna to **identyczność nukleotydowa: zdjęcie kary za skł
 punktu**, zgodnie na wszystkich trzech ziarnach. Kara za skład kosztuje więc identyczność — i to
 jest jedyny koszt, jaki udało się zmierzyć.
 
-⚠️ **Dwa sprostowania wobec wcześniejszych wersji tego dokumentu.**
-
-Pierwsze: figurowało tu zdanie „kara za skład szkodzi trafności", oparte na zestawieniu `E1` z `CE`,
-które różnią się trzema rzeczami naraz. Kontrola `E3` pokazała, że efektu nie da się przypisać temu
-członowi.
-
-Drugie: po kontroli `E3` napisaliśmy, że za spadek trafności odpowiadają energia i parowania. Było to
-oparte na progu zmierzonym na **walidacji** (0,47). Przy progu zmierzonym na teście (1,51) ten krok
-też jest w szumie. **Na trafności nie mamy istotnego efektu żadnego z członów straty.**
-
 ### Ważona cross-entropia zmienia skład, nie trafność
 
 ```
@@ -553,10 +521,8 @@ Ważenie **niezawodnie obniża identyczność i udział G:C** — obie te zmiany
 albo trzech parach, przy zgodnym kierunku. `CEW` jako jedyny model nie nadprodukuje par G:C (0,333
 przy referencji 0,484 — tym razem produkuje ich za mało).
 
-**Wzrost trafności zbalansowanej nie przeżył pomiaru na teście.** Kierunek jest dodatni we wszystkich
-trzech parach, ale największa różnica (`+0,67`) to niecała połowa progu. Wcześniejsza wersja tego
-dokumentu podawała ten efekt jako najmocniejszy w całym zestawie — przy progu z walidacji tak
-wyglądał.
+**Wzrost trafności zbalansowanej nie przeżywa progu.** Kierunek jest dodatni we wszystkich trzech
+parach, ale największa różnica (`+0,67`) to niecała połowa progu.
 
 ### E1 i E2 są nierozróżnialne
 
@@ -649,16 +615,14 @@ a prawdziwe sekwencje mają C 0,229 i G 0,268. **97% sekwencji testowych łamie 
 próg**, więc kara jest stale aktywna i stale popycha C i G w górę — a każda para G:C wnosi jedno G
 i jedno C.
 
-### Dlaczego nie `argmax`
+### Dlaczego argmax wymaga straight-through
 
-Wcześniejsze wersje E1 i E2 dekodowały przez `argmax` i **zapadały się**: 96% adeniny w pętlach,
-99,9% par G:C. Rozkłady były przy tym w porządku — E2 miał miękko `G:C 0,693`, a nie 0,999.
+`argmax` bez straight-through **zapada się**: 96% adeniny w pętlach, 99,9% par G:C. Rozkłady są przy
+tym w porządku — E2 ma miękko `G:C 0,693`, a nie 0,999.
 
-Przyczyna jest jedna i prosta: **rozkład jest niemal ten sam na każdej pozycji.** Model prawie nie
-korzysta z wejścia, więc wszędzie produkuje ten sam płaski rozkład z tym samym drobnym przechyłem ku
-G:C. `argmax` bierze zwycięzcę, a zwycięzca jest wszędzie ten sam — punkt zamiast rozkładu.
-
-Zmierzone na 20 691 pozycjach otwierających parę w zbiorze testowym:
+Przyczyna: **rozkład jest niemal ten sam na każdej pozycji.** Model słabo korzysta z wejścia, więc
+wszędzie produkuje ten sam płaski rozkład z drobnym przechyłem ku G:C. `argmax` bierze zwycięzcę,
+a zwycięzca jest wszędzie ten sam. Zmierzone na 20 691 pozycjach otwierających parę:
 
 ```
 model   pewnosc zwyciezcy   przewaga nad drugim   pozycji wygranych przez G:C
@@ -668,29 +632,24 @@ CE              0,338              0,109                    91,5%
                 (jednostajny 0,167)
 ```
 
-Zwycięzca ma średnio 0,38–0,43 prawdopodobieństwa — czyli w ponad połowie przypadków model stawia na
-klasę, w którą sam nie wierzy. Ale wygrywa, i to wystarczy.
+Zwycięzca ma średnio 0,38–0,43 prawdopodobieństwa, czyli w ponad połowie przypadków model stawia na
+klasę, w którą sam nie wierzy — ale wygrywa, i to wystarczy.
 
-Warto od razu odrzucić wyjaśnienie, które się samo nasuwa: że winny jest podział na **sześć** klas,
-w którym typ A:U musi przebić obie orientacje G:C osobno. Sprawdziliśmy to — `argmax` liczony po
-trzech typach (z masami orientacji zsumowanymi) daje `G:C` 0,990 / 0,999 / 0,922, czyli tyle samo
-albo więcej. Sześć klas nic tu nie psuje; psuje sam `argmax` na rozkładzie, który nie zależy od
-pozycji.
+Winny **nie** jest podział na sześć klas, w którym typ A:U musi przebić obie orientacje G:C osobno:
+`argmax` liczony po trzech typach, z masami orientacji zsumowanymi, daje `G:C` 0,990 / 0,999 / 0,922,
+czyli tyle samo albo więcej.
 
-**Losowanie z rozkładu tego problemu nie ma**, bo oczekiwany skład wylosowanej sekwencji równa się
-składowi rozkładu. Zgodność jest dokładna do trzeciego miejsca po przecinku: E1 ma miękko
-`G:C 0,622`, a na wygenerowanych sekwencjach 0,625. Wartość kary raportowana w treningu opisuje więc
-to samo, co widać na gotowej sekwencji.
+Rozwiązaniem jest **straight-through** (`--kary-na-argmax`): kary widzą twarde wyjście, więc mają co
+karać. Po jego włączeniu degeneracja znika — patrz sekcja „Degeneracja zniknęła".
 
 ### Wagi: wszystkie 1,0, bez dobierania pod wynik
 
-Wcześniejszy przegląd 13 ustawień wag (`python -m src.przeglad`, na walidacji) dał wynik **negatywny**:
-różnice między konfiguracjami były rzędu szumu, a waga parowań nie robiła nic w całym zakresie
-0 → 12. To była przesłanka, przez którą zdjęliśmy odziedziczoną wagę 6,0.
+Specyfikacja promotora wnosi swoją karę wprost (`loss = loss + DistribLoss`), a my przyjmujemy tę samą
+konwencję dla pozostałych członów. Dzięki temu żadna waga w tej pracy nie jest dopasowana pod wynik
+i każdą da się uzasadnić jednym zdaniem.
 
-⚠️ Ten przegląd był liczony w poprzednim reżimie (dekodowanie przez losowanie) i **nie został
-powtórzony po przejściu na `argmax`**. Jego wyniku nie cytujemy więc liczbowo — służy tylko jako
-uzasadnienie, dlaczego wszystkie wagi stoją na 1,0 i dlaczego żadna nie jest dopasowana pod wynik.
+Strojenia wag nie przeprowadzaliśmy. Przy progu istotności `1,51` dla `zbal_par` i różnicach między
+skrajnymi konfiguracjami rzędu `1,3` nie ma czego stroić — cały rozstrzał mieści się w szumie.
 
 ---
 
